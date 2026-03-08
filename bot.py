@@ -11,6 +11,7 @@ import threading
 import os
 import json
 import time
+from datetime import datetime
 
 TOKEN = os.getenv("TOKEN")
 
@@ -93,17 +94,44 @@ async def callback(request: Request):
     amount = data.get("amount", "0")
 
     real_value = int(data.get("value", 0))
+    fee = float(data.get("fee", 0))
+    receive = int(data.get("received", 0))
 
     if request_id in orders:
 
         order = orders[request_id]
 
         channel = bot.get_channel(order["channel"])
+        log_channel = bot.get_channel(1479880771274674259)
 
         if not channel:
             return {"ok": True}
 
         order_amount = int(order["amount"])
+
+        # ===== LOG ADMIN =====
+        if log_channel:
+
+            log_embed = discord.Embed(
+                title="📥 THẺ NẠP MỚI",
+                color=0x3498db
+            )
+
+            log_embed.add_field(name="Trạng thái", value="Thẻ đúng" if status == "1" else status, inline=True)
+            log_embed.add_field(name="Mã nạp", value=order.get("code", "N/A"), inline=True)
+            log_embed.add_field(name="Serial", value=order.get("serial", "N/A"), inline=True)
+
+            log_embed.add_field(name="Mạng", value=order.get("telco", "N/A"), inline=True)
+            log_embed.add_field(name="Tổng gửi", value=f"{order_amount:,}", inline=True)
+            log_embed.add_field(name="Tổng thực", value=f"{real_value:,}", inline=True)
+
+            log_embed.add_field(name="Phí", value=f"{fee}%", inline=True)
+            log_embed.add_field(name="Nhận", value=f"{receive:,}", inline=True)
+            log_embed.add_field(name="Mã Đơn", value=request_id, inline=False)
+
+            log_embed.set_footer(text=datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+
+            await log_channel.send(embed=log_embed)
 
         # ===== ĐÚNG MỆNH GIÁ =====
         if status == "1" and real_value == order_amount:
@@ -126,7 +154,6 @@ async def callback(request: Request):
 
             await channel.send(embed=embed)
 
-        # ===== SAI MỆNH GIÁ =====
         elif status == "1" and real_value != order_amount:
 
             await channel.send(
@@ -370,6 +397,10 @@ class CardModal(discord.ui.Modal, title="💳 Nhập thông tin thẻ"):
 
         user_id = interaction.user.id
         now = time.time()
+
+        orders[self.order_id]["serial"] = self.serial.value
+        orders[self.order_id]["code"] = self.code.value
+        orders[self.order_id]["telco"] = self.telco
 
         if user_id in user_block_until and now < user_block_until[user_id]:
             remain = int(user_block_until[user_id] - now)
