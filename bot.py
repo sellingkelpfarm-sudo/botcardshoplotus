@@ -14,8 +14,8 @@ import json
 TOKEN = os.getenv("TOKEN")
 
 PARTNER_ID = "45016810383"
-PARTNER_KEY = "0c8672410bf6ba8caeb009508b026ed9"
-API_URL = "https://doithe1s.vn/chargingws/v2"
+PARTNER_KEY = "c63d72291473a68fcbb23261491a103f"
+API_URL = "https://gachthe1s.com/chargingws/v2"
 
 CATEGORY_NAME = "orders-card"
 LOG_CHANNEL_ID = 1479880771274674259
@@ -357,3 +357,4 @@ threading.Thread(target=start_bot, daemon=True).start()
 
 port = int(os.getenv("PORT", 8000))
 uvicorn.run(app, host="0.0.0.0", port=port)
+
