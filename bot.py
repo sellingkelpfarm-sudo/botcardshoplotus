@@ -213,7 +213,7 @@ async def daxong(ctx, order_id: str):
     )
 
     await channel.send(embed=embed)
-    await ctx.send("✅ Đã giao hàng thủ công")
+    await ctx.send("❤️ **Cảm ơn vì đã tin tưởng sử dụng dịch vụ!**")
 
 
 # ================= SELL CARD =================
@@ -324,7 +324,7 @@ class OrderView(discord.ui.View):
         view.add_item(TelcoSelect(self.order_id, self.amount))
 
         await interaction.response.send_message(
-            f"📡 Chọn nhà mạng (mệnh giá {self.amount:,} VND)",
+            f"📡 Chọn nhà mạng (mệnh giá {self.amount:,} VND)\n-#thời gian tự động xác thực mã thẻ sẽ lâu nếu nằm ngoài giờ làm việc [7h30-22h mỗi ngày]",
             view=view
         )
 
@@ -482,6 +482,7 @@ threading.Thread(target=start_bot, daemon=True).start()
 
 port = int(os.getenv("PORT", 8000))
 uvicorn.run(app, host="0.0.0.0", port=port)
+
 
 
 
