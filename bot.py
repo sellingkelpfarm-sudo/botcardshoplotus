@@ -353,14 +353,14 @@ class CardModal(discord.ui.Modal, title="💳 Nhập thông tin thẻ"):
                 await interaction.followup.send("❌ Thẻ đã qua sử dụng hoặc không hợp lệ")
 
             else:
-                await interaction.followup.send("⚠️ Lỗi không xác định từ API")
+                await interaction.followup.send("🚨 HỆ THỐNG NẠP CARD ĐANG GẶP SỰ CỐ. VUI LÒNG BÁO ADMIN ĐỂ ĐƯỢC HỖ TRỢ!!")
 
         except Exception as e:
 
             print("API ERROR:", e)
 
             await interaction.followup.send(
-                "🚨 HỆ THỐNG NẠP CARD ĐANG GẶP SỰ CỐ. VUI LÒNG BÁO ADMIN!"
+                "🚨 HỆ THỐNG NẠP CARD ĐANG GẶP SỰ CỐ. VUI LÒNG BÁO ADMIN ĐỂ ĐƯỢC HỖ TRỢ!!"
             )
 
 
@@ -374,3 +374,4 @@ def run_api():
 threading.Thread(target=run_api).start()
 
 bot.run(TOKEN)
+
