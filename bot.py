@@ -58,10 +58,7 @@ async def send_card(telco, amount, serial, code, request_id):
 @app.api_route("/callback", methods=["GET", "POST"])
 async def callback(request: Request):
 
-    if request.method == "GET":
-        data = dict(request.query_params)
-    else:
-        data = await request.json()
+    data = await request.json()
 
     request_id = data.get("request_id")
     status = int(data.get("status", 0))
@@ -91,10 +88,6 @@ async def callback(request: Request):
             )
 
             await channel.send(embed=embed)
-
-            # đổi ❌ thành ✅
-            new_name = channel.name.replace("❌", "✅")
-            await channel.edit(name=new_name)
 
         elif status == 3:
 
@@ -186,7 +179,6 @@ class TelcoSelect(discord.ui.Select):
             discord.SelectOption(label="Vinaphone", value="VINAPHONE"),
             discord.SelectOption(label="Vietnamobile", value="VIETNAMOBILE"),
             discord.SelectOption(label="Garena", value="GARENA"),
-            discord.SelectOption(label="Zing", value="ZING"),
         ]
 
         super().__init__(placeholder="📡 Chọn nhà mạng", options=options)
@@ -265,12 +257,6 @@ async def sellcard(ctx, amount: int, link: str):
     product = ctx.channel.name
     order_id = random_code()
 
-    username = ctx.author.name
-
-    new_channel_name = f"❌{order_id}-{username}"
-
-    await ctx.channel.edit(name=new_channel_name)
-
     embed = discord.Embed(
         title="📦 XÁC NHẬN THANH TOÁN",
         description=f"""
@@ -284,12 +270,6 @@ async def sellcard(ctx, amount: int, link: str):
 """,
         color=0xf1c40f
     )
-
-    orders[order_id] = {
-        "channel": ctx.channel.id,
-        "product": product,
-        "link": link
-    }
 
     view = OrderView(order_id)
 
