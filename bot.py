@@ -8,8 +8,9 @@ import asyncio
 from fastapi import FastAPI, Request
 import uvicorn
 import threading
+import os
 
-TOKEN = "TOKEN"
+TOKEN = os.getenv("TOKEN")
 
 PARTNER_ID = "45016810383"
 PARTNER_KEY = "0c8672410bf6ba8caeb009508b026ed9"
@@ -199,5 +200,6 @@ def run_api():
 
 
 threading.Thread(target=run_api).start()
+
 
 bot.run(TOKEN)
