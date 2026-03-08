@@ -340,11 +340,12 @@ class CardModal(discord.ui.Modal, title="💳 Nhập thông tin thẻ"):
 
 # ================= RUN API =================
 
-def run_api():
-    port = int(os.getenv("PORT", 8000))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+# ================= RUN API =================
 
+def start_bot():
+    bot.run(TOKEN)
 
-threading.Thread(target=run_api).start()
+threading.Thread(target=start_bot).start()
 
-bot.run(TOKEN)
+port = int(os.getenv("PORT", 8000))
+uvicorn.run(app, host="0.0.0.0", port=port)
