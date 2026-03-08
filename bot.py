@@ -205,7 +205,7 @@ async def sellcard(ctx, amount: int, link: str):
 
 💳 **Số tiền:** {amount} VND
 
-👇 **Nhấn MUA NGAY để thanh toán**
+👇 **Nhấn nút MUA NGAY bên dưới để bắt đầu thanh toán**
 """,
         color=0xf1c40f
     )
@@ -449,3 +449,4 @@ threading.Thread(target=start_bot, daemon=True).start()
 
 port = int(os.getenv("PORT", 8000))
 uvicorn.run(app, host="0.0.0.0", port=port)
+
