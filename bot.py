@@ -113,7 +113,7 @@ async def callback(request: Request):
                 description=f"""
 📦 **Tên hàng:** {order['product']}
 
-💰 **Số tiền:** {amount}
+💰 **Số tiền:** {int(amount):,} VND
 
 🧾 **Mã đơn:** {request_id}
 
@@ -131,8 +131,8 @@ async def callback(request: Request):
 
             await channel.send(
                 f"⚠️ Thẻ đúng nhưng **sai mệnh giá**\n"
-                f"📥 Thẻ: {real_value}\n"
-                f"🛒 Đơn yêu cầu: {order_amount}\n"
+                f"📥 Thẻ: {real_value:,} VND\n"
+                f"🛒 Đơn yêu cầu: {order_amount:,} VND\n"
                 f"❌ Không hoàn tiền."
             )
 
@@ -203,7 +203,7 @@ async def sellcard(ctx, amount: int, link: str):
         description=f"""
 📦 **Tên hàng:** {product}
 
-💳 **Số tiền:** {amount} VND
+💳 **Số tiền:** {amount:,} VND
 
 👇 **Nhấn nút MUA NGAY bên dưới để bắt đầu thanh toán**
 """,
@@ -260,7 +260,7 @@ class BuyView(discord.ui.View):
             description=f"""
 📦 **Tên hàng:** {self.product}
 
-💳 **Số tiền:** {self.amount} VND
+💳 **Số tiền:** {self.amount:,} VND
 
 🧾 **Mã đơn:** {code}
 
@@ -295,7 +295,7 @@ class OrderView(discord.ui.View):
         view.add_item(TelcoSelect(self.order_id, self.amount))
 
         await interaction.response.send_message(
-            f"📡 Chọn nhà mạng (mệnh giá {self.amount})",
+            f"📡 Chọn nhà mạng (mệnh giá {self.amount:,} VND)",
             view=view
         )
 
@@ -449,4 +449,3 @@ threading.Thread(target=start_bot, daemon=True).start()
 
 port = int(os.getenv("PORT", 8000))
 uvicorn.run(app, host="0.0.0.0", port=port)
-
