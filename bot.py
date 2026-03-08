@@ -54,22 +54,27 @@ async def send_card(telco, amount, serial, code, request_id):
 
 # ================= CALLBACK =================
 
-@app.post("/callback")
+@app.api_route("/callback", methods=["GET", "POST"])
 async def callback(request: Request):
 
-    data = await request.json()
+    if request.method == "POST":
+        data = await request.json()
+    else:
+        data = dict(request.query_params)
 
-    request_id = data["request_id"]
-    status = int(data["status"])
-    amount = data["amount"]
+    request_id = data.get("request_id")
+    status = int(data.get("status", 0))
+    amount = data.get("amount", "0")
 
     if request_id in orders:
 
         order = orders[request_id]
 
         channel = bot.get_channel(order["channel"])
-
         log_channel = bot.get_channel(LOG_CHANNEL_ID)
+
+        if not channel:
+            return {"ok": True}
 
         if status == 1:
 
@@ -89,17 +94,19 @@ async def callback(request: Request):
 
             await channel.send(embed=embed)
 
-            log = discord.Embed(
-                title="💰 TIỀN ĐÃ VÀO",
-                description=f"""
+            if log_channel:
+
+                log = discord.Embed(
+                    title="💰 TIỀN ĐÃ VÀO",
+                    description=f"""
 👤 User: {order['user']}
 💵 Số tiền: {amount}
 🧾 Mã đơn: {request_id}
 """,
-                color=0x2ecc71
-            )
+                    color=0x2ecc71
+                )
 
-            await log_channel.send(embed=log)
+                await log_channel.send(embed=log)
 
         elif status == 2:
 
@@ -117,6 +124,11 @@ async def callback(request: Request):
 
 
 # ================= DISCORD =================
+
+@bot.event
+async def on_ready():
+    print(f"Bot online: {bot.user}")
+
 
 @bot.command()
 async def sellcard(ctx, amount: int, link: str):
@@ -160,6 +172,13 @@ class BuyView(discord.ui.View):
 
         category = discord.utils.get(guild.categories, name=CATEGORY_NAME)
 
+        if not category:
+            await interaction.response.send_message(
+                "❌ Không tìm thấy category orders-card",
+                ephemeral=True
+            )
+            return
+
         channel = await guild.create_text_channel(
             name=f"{random_code().lower()}-{user.name}",
             category=category
@@ -196,10 +215,10 @@ class BuyView(discord.ui.View):
 # ================= RUN WEB SERVER =================
 
 def run_api():
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    port = int(os.getenv("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
 
 
 threading.Thread(target=run_api).start()
-
 
 bot.run(TOKEN)
