@@ -275,7 +275,7 @@ class TelcoSelect(discord.ui.Select):
         view.add_item(AmountSelect(self.values[0], self.order_id))
 
         await interaction.response.send_message(
-            "💰 **Chọn mệnh giá thẻ**",
+            "💰 **Chọn mệnh giá thẻ[Lưu ý:Chọn mệnh giá đúng với số tiền của đơn hàng.Nếu nhập sai sẽ không hoàn lại tiền!]**",
             view=view
         )
 
@@ -295,7 +295,7 @@ class AmountSelect(discord.ui.Select):
             discord.SelectOption(label="500.000", value="500000")
         ]
 
-        super().__init__(placeholder="💰 Chọn mệnh giá[Lưu ý:Chọn mệnh giá đúng với số tiền của đơn hàng.Nếu nhập sai sẽ không hoàn lại tiền!", options=options)
+        super().__init__(placeholder="💰 Chọn mệnh giá", options=options)
 
         self.telco = telco
         self.order_id = order_id
@@ -367,4 +367,5 @@ def run_api():
 threading.Thread(target=run_api).start()
 
 bot.run(TOKEN)
+
 
