@@ -77,7 +77,7 @@ async def callback(request: Request):
             embed = discord.Embed(
                 title="🎉 THANH TOÁN THÀNH CÔNG",
                 description=f"""
-📦 **Tên đơn hàng:** {order['product']}
+📦 **Tên hàng:** {order['product']}
 
 💰 **Số tiền:** {amount}
 
@@ -127,9 +127,9 @@ async def sellcard(ctx, amount: int, link: str):
         description=f"""
 📦 **Tên hàng:** {product}
 
-💰 **Số tiền:** {amount}
+💳 **Số tiền:** {amount} VND
 
-👉 **Vui lòng nhấn nút MUA NGAY bên dưới để bắt đầu thanh toán**
+👇 **Vui lòng nhấn nút MUA NGAY bên dưới để bắt đầu thanh toán**
 """,
         color=0xf1c40f
     )
@@ -183,9 +183,9 @@ class BuyView(discord.ui.View):
             description=f"""
 📦 **Tên hàng:** {self.product}
 
-💰 **Số tiền:** {self.amount}
+💳 **Số tiền:** {self.amount} VND
 
-🧾 **Mã đơn hàng:** {code}
+🧾 **Mã đơn:** {code}
 
 ⚠️ Nhấn **NẠP CARD** để thanh toán
 """,
@@ -323,7 +323,7 @@ class CardModal(discord.ui.Modal, title="💳 Nhập thông tin thẻ"):
     async def on_submit(self, interaction: discord.Interaction):
 
         await interaction.response.send_message(
-            "⏳ **Đang kiểm tra thẻ...**\n\n⚠️ Lưu ý: Nạp đúng mệnh giá thẻ.",
+            "⏳ **Đang kiểm tra thẻ...**\n\n",
             ephemeral=True
         )
 
@@ -367,5 +367,6 @@ def run_api():
 threading.Thread(target=run_api).start()
 
 bot.run(TOKEN)
+
 
 
