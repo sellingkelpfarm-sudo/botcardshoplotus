@@ -439,7 +439,7 @@ class CardModal(discord.ui.Modal, title="💳 Nhập thông tin thẻ"):
 
             if status == "99":
                 await interaction.followup.send(
-                    "✅ Hệ thống đã nhận thẻ\n⏳ Đang xử lý, vui lòng chờ kết quả..."
+                    "✅ Hệ thống đã nhận thẻ\n⏳ Đang xử lý, vui lòng chờ kết quả...\n\n-#thời gian tự động xác thực mã thẻ sẽ lâu nếu nằm ngoài giờ làm việc [7h30-22h mỗi ngày]"
                 )
 
             elif status == "1":
@@ -480,4 +480,5 @@ threading.Thread(target=start_bot, daemon=True).start()
 
 port = int(os.getenv("PORT", 8000))
 uvicorn.run(app, host="0.0.0.0", port=port)
+
 
