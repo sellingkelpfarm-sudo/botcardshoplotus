@@ -14,7 +14,7 @@ import time
 
 TOKEN = os.getenv("TOKEN")
 
-PARTNER_ID = "45016810383"
+PARTNER_ID = "86935102540"
 PARTNER_KEY = "c63d72291473a68fcbb23261491a103f"
 API_URL = "https://gachthe1s.com/chargingws/v2"
 
@@ -400,3 +400,4 @@ threading.Thread(target=start_bot, daemon=True).start()
 
 port = int(os.getenv("PORT", 8000))
 uvicorn.run(app, host="0.0.0.0", port=port)
+
