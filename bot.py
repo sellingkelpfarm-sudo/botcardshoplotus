@@ -40,7 +40,7 @@ async def send_card(telco, amount, serial, code, request_id):
     params = {
         "partner_id": PARTNER_ID,
         "request_id": request_id,
-        "telco": telco,
+        "telco": telco.upper(),
         "code": code,
         "serial": serial,
         "amount": amount,
@@ -50,7 +50,8 @@ async def send_card(telco, amount, serial, code, request_id):
 
     async with aiohttp.ClientSession() as session:
         async with session.get(API_URL, params=params) as resp:
-            return await resp.json()
+            data = await resp.json(content_type=None)
+            return data
 
 
 # ================= CALLBACK =================
@@ -275,7 +276,7 @@ class TelcoSelect(discord.ui.Select):
         view.add_item(AmountSelect(self.values[0], self.order_id))
 
         await interaction.response.send_message(
-            "💰 **Chọn mệnh giá thẻ[Lưu ý:Chọn mệnh giá đúng với số tiền của đơn hàng.Nếu nhập sai sẽ không hoàn lại tiền!]**",
+            "💰 **Chọn mệnh giá thẻ [Lưu ý: chọn đúng mệnh giá]**",
             view=view
         )
 
@@ -323,7 +324,7 @@ class CardModal(discord.ui.Modal, title="💳 Nhập thông tin thẻ"):
     async def on_submit(self, interaction: discord.Interaction):
 
         await interaction.response.send_message(
-            "⏳ **Đang kiểm tra thẻ...**\n\n",
+            "⏳ **Đang kiểm tra thẻ...**",
             ephemeral=True
         )
 
@@ -337,7 +338,7 @@ class CardModal(discord.ui.Modal, title="💳 Nhập thông tin thẻ"):
                 self.order_id
             )
 
-            status = result["status"]
+            status = int(result.get("status", 0))
 
             if status == 99:
                 await interaction.followup.send("⏳ Thẻ đang chờ duyệt")
@@ -345,12 +346,18 @@ class CardModal(discord.ui.Modal, title="💳 Nhập thông tin thẻ"):
             elif status == 1:
                 await interaction.followup.send("🎉 Thẻ hợp lệ, đang chờ callback")
 
-            else:
-                await interaction.followup.send(
-                    "❌ Thẻ đã qua sử dụng hoặc không hợp lệ"
-                )
+            elif status == 2:
+                await interaction.followup.send("⚠️ Sai mệnh giá thẻ")
 
-        except:
+            elif status == 3:
+                await interaction.followup.send("❌ Thẻ đã qua sử dụng hoặc không hợp lệ")
+
+            else:
+                await interaction.followup.send("⚠️ Lỗi không xác định từ API")
+
+        except Exception as e:
+
+            print("API ERROR:", e)
 
             await interaction.followup.send(
                 "🚨 HỆ THỐNG NẠP CARD ĐANG GẶP SỰ CỐ. VUI LÒNG BÁO ADMIN!"
@@ -367,6 +374,3 @@ def run_api():
 threading.Thread(target=run_api).start()
 
 bot.run(TOKEN)
-
-
-
