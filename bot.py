@@ -340,12 +340,79 @@ class CardModal(discord.ui.Modal, title="💳 Nhập thông tin thẻ"):
 
 # ================= RUN API =================
 
-# ================= RUN API =================
+from fastapi import FastAPI, Request
+import threading
+import uvicorn
+
+app = FastAPI()
+
+@app.api_route("/callback", methods=["GET", "POST"])
+async def callback(request: Request):
+
+    try:
+        if request.method == "POST":
+            data = await request.json()
+        else:
+            data = dict(request.query_params)
+    except:
+        data = dict(request.query_params)
+
+    request_id = data.get("request_id")
+    status = str(data.get("status", "0"))
+    amount = data.get("amount", "0")
+
+    if request_id in orders:
+
+        order = orders[request_id]
+
+        channel = bot.get_channel(order["channel"])
+
+        # FIX crash khi channel không tồn tại
+        if not channel:
+            return {"ok": True}
+
+        if status == "1":
+
+            embed = discord.Embed(
+                title="🎉 THANH TOÁN THÀNH CÔNG",
+                description=f"""
+📦 **Tên hàng:** {order['product']}
+
+💰 **Số tiền:** {amount}
+
+🧾 **Mã đơn:** {request_id}
+
+🔗 **Link tải:** {order['link']}
+
+❤️ Cảm ơn vì đã tin tưởng sử dụng dịch vụ!
+""",
+                color=0x2ecc71
+            )
+
+            await channel.send(embed=embed)
+
+        elif status == "2":
+            await channel.send("⚠️ **Sai mệnh giá thẻ!**")
+
+        elif status == "3":
+            await channel.send("❌ **Thẻ đã qua sử dụng hoặc không hợp lệ!**")
+
+        elif status == "99":
+            await channel.send("⏳ **Thẻ đang chờ duyệt...**")
+
+    return {"ok": True}
+
+
+# ================= RUN BOT =================
 
 def start_bot():
     bot.run(TOKEN)
 
-threading.Thread(target=start_bot).start()
+# FIX Railway crash
+threading.Thread(target=start_bot, daemon=True).start()
+
+
+# ================= START SERVER =================
 
 port = int(os.getenv("PORT", 8000))
 uvicorn.run(app, host="0.0.0.0", port=port)
