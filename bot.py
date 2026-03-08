@@ -91,7 +91,8 @@ async def callback(request: Request):
     request_id = data.get("request_id")
     status = str(data.get("status", "0"))
     amount = data.get("amount", "0")
-    real_value = data.get("value", "0")  # mệnh giá thật
+
+    real_value = int(data.get("value", 0))
 
     if request_id in orders:
 
@@ -102,7 +103,7 @@ async def callback(request: Request):
         if not channel:
             return {"ok": True}
 
-        order_amount = str(order["amount"])
+        order_amount = int(order["amount"])
 
         # ===== ĐÚNG MỆNH GIÁ =====
         if status == "1" and real_value == order_amount:
@@ -129,7 +130,7 @@ async def callback(request: Request):
         elif status == "1" and real_value != order_amount:
 
             await channel.send(
-                f"⚠️ Thẻ đúng nhưng **sai mệnh giá**.\n"
+                f"⚠️ Thẻ đúng nhưng **sai mệnh giá**\n"
                 f"📥 Thẻ: {real_value}\n"
                 f"🛒 Đơn yêu cầu: {order_amount}\n"
                 f"❌ Không hoàn tiền."
@@ -152,6 +153,38 @@ async def callback(request: Request):
 @bot.event
 async def on_ready():
     print(f"Bot online: {bot.user}")
+
+
+# ================= ADMIN COMMAND =================
+
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def daxong(ctx, order_id: str):
+
+    order_id = order_id.upper()
+
+    if order_id not in orders:
+        await ctx.send("❌ Không tìm thấy đơn")
+        return
+
+    order = orders[order_id]
+
+    channel = bot.get_channel(order["channel"])
+
+    embed = discord.Embed(
+        title="🎉 XÁC NHẬN THANH TOÁN THÀNH CÔNG (ADMIN)",
+        description=f"""
+📦 **Tên hàng:** {order['product']}
+
+🧾 **Mã đơn:** {order_id}
+
+🔗 **Link tải:** {order['link']}
+""",
+        color=0x2ecc71
+    )
+
+    await channel.send(embed=embed)
+    await ctx.send("✅ Đã giao hàng thủ công")
 
 
 # ================= SELL CARD =================
@@ -227,11 +260,11 @@ class BuyView(discord.ui.View):
             description=f"""
 📦 **Tên hàng:** {self.product}
 
-💳 **Số tiền cần nạp:** {self.amount} VND
+💳 **Số tiền:** {self.amount} VND
 
 🧾 **Mã đơn:** {code}
 
-⚠️ Thẻ phải đúng mệnh giá **{self.amount}**
+⚠️ LƯU Ý: NẠP SAI NỘI DUNG THẺ HOẶC SAI MỆNH GIÁ TIỀN SẼ KHÔNG ĐƯỢC HOÀN TRẢ LẠI!**
 """,
             color=0x3498db
         )
@@ -394,17 +427,17 @@ class CardModal(discord.ui.Modal, title="💳 Nhập thông tin thẻ"):
                     )
                 else:
                     await interaction.followup.send(
-                        f"❌ Thẻ sai ({fails}/{MAX_FAIL})"
+                        f"❌ Thẻ sai. Quá 3 lần thử sẽ bị cấm nạp thẻ 5 phút [số lần thử: ({fails}/{MAX_FAIL})]"
                     )
 
             else:
-                await interaction.followup.send("🚨 Lỗi hệ thống")
+                await interaction.followup.send("🚨 Lỗi hệ thống, Vui lòng báo Admin để xử lý!")
 
         except Exception as e:
 
             print("API ERROR:", e)
 
-            await interaction.followup.send("🚨 Lỗi hệ thống")
+            await interaction.followup.send("🚨 Lỗi hệ thống, Vui lòng báo Admin để xử lý!")
 
 
 # ================= RUN BOT + API =================
