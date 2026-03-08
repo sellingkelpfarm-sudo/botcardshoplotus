@@ -32,7 +32,7 @@ def random_code():
     return ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
 
 
-# ================= API =================
+# ================= API SEND CARD =================
 
 async def send_card(telco, amount, serial, code, request_id):
 
@@ -53,7 +53,12 @@ async def send_card(telco, amount, serial, code, request_id):
         async with session.get(API_URL, params=params) as resp:
 
             text = await resp.text()
-            data = json.loads(text)
+
+            try:
+                data = json.loads(text)
+            except:
+                print("API RAW:", text)
+                return {"status": "0"}
 
             return data
 
@@ -63,10 +68,15 @@ async def send_card(telco, amount, serial, code, request_id):
 @app.api_route("/callback", methods=["GET", "POST"])
 async def callback(request: Request):
 
-    if request.method == "POST":
-        data = await request.json()
-    else:
+    try:
+        if request.method == "POST":
+            data = await request.json()
+        else:
+            data = dict(request.query_params)
+    except:
         data = dict(request.query_params)
+
+    print("CALLBACK:", data)
 
     request_id = data.get("request_id")
     status = str(data.get("status", "0"))
@@ -75,7 +85,11 @@ async def callback(request: Request):
     if request_id in orders:
 
         order = orders[request_id]
+
         channel = bot.get_channel(order["channel"])
+
+        if not channel:
+            return {"ok": True}
 
         if status == "1":
 
@@ -98,13 +112,13 @@ async def callback(request: Request):
             await channel.send(embed=embed)
 
         elif status == "2":
-            await channel.send("⚠️ **Sai mệnh giá thẻ!**")
+            await channel.send("⚠️ Sai mệnh giá thẻ")
 
         elif status == "3":
-            await channel.send("❌ **Thẻ đã qua sử dụng hoặc không hợp lệ!**")
+            await channel.send("❌ Thẻ đã qua sử dụng hoặc không hợp lệ")
 
         elif status == "99":
-            await channel.send("⏳ **Thẻ đang chờ duyệt...**")
+            await channel.send("⏳ Thẻ đang chờ duyệt")
 
     return {"ok": True}
 
@@ -134,7 +148,7 @@ async def sellcard(ctx, amount: int, link: str):
 
 💳 **Số tiền:** {amount} VND
 
-👇 **Vui lòng nhấn nút MUA NGAY bên dưới để bắt đầu thanh toán**
+👇 **Nhấn MUA NGAY để thanh toán**
 """,
         color=0xf1c40f
     )
@@ -193,7 +207,7 @@ class BuyView(discord.ui.View):
 
 🧾 **Mã đơn:** {code}
 
-⚠️ Thẻ cào phải đúng mệnh giá **{self.amount} VND**
+⚠️ Thẻ phải đúng mệnh giá **{self.amount}**
 """,
             color=0x3498db
         )
@@ -224,7 +238,7 @@ class OrderView(discord.ui.View):
         view.add_item(TelcoSelect(self.order_id, self.amount))
 
         await interaction.response.send_message(
-            f"📡 **Chọn nhà mạng (Thẻ phải mệnh giá {self.amount} VND)**",
+            f"📡 Chọn nhà mạng (mệnh giá {self.amount})",
             view=view
         )
 
@@ -232,7 +246,7 @@ class OrderView(discord.ui.View):
     async def cancel(self, interaction: discord.Interaction, button):
 
         await interaction.response.send_message(
-            "⚠️ **BẠN CÓ CHẮC HỦY ĐƠN CHỨ?**",
+            "⚠️ Bạn chắc chắn muốn hủy?",
             view=CancelView()
         )
 
@@ -244,7 +258,7 @@ class CancelView(discord.ui.View):
     @discord.ui.button(label="CÓ", style=discord.ButtonStyle.red)
     async def yes(self, interaction: discord.Interaction, button):
 
-        await interaction.response.send_message("🗑️ Kênh sẽ bị xóa sau 5 giây...")
+        await interaction.response.send_message("🗑️ Kênh sẽ bị xóa sau 5 giây")
 
         await asyncio.sleep(5)
         await interaction.channel.delete()
@@ -265,8 +279,6 @@ class TelcoSelect(discord.ui.Select):
             discord.SelectOption(label="Viettel", value="VIETTEL"),
             discord.SelectOption(label="Vinaphone", value="VINAPHONE"),
             discord.SelectOption(label="Mobifone", value="MOBIFONE"),
-            discord.SelectOption(label="Vcoin", value="VCOIN"),
-            discord.SelectOption(label="Scoin", value="SCOIN"),
             discord.SelectOption(label="Zing", value="ZING")
         ]
 
@@ -298,7 +310,7 @@ class CardModal(discord.ui.Modal, title="💳 Nhập thông tin thẻ"):
     async def on_submit(self, interaction: discord.Interaction):
 
         await interaction.response.send_message(
-            "⏳ **Đang kiểm tra thẻ...**",
+            "⏳ Đang kiểm tra thẻ...",
             ephemeral=True
         )
 
@@ -318,101 +330,30 @@ class CardModal(discord.ui.Modal, title="💳 Nhập thông tin thẻ"):
                 await interaction.followup.send("⏳ Thẻ đang chờ duyệt")
 
             elif status == "1":
-                await interaction.followup.send("🎉 Thẻ hợp lệ, đang chờ callback")
+                await interaction.followup.send("🎉 Thẻ hợp lệ, chờ callback")
 
             elif status == "2":
                 await interaction.followup.send("⚠️ Sai mệnh giá thẻ")
 
             elif status == "3":
-                await interaction.followup.send("❌ Thẻ đã qua sử dụng hoặc không hợp lệ")
+                await interaction.followup.send("❌ Thẻ không hợp lệ")
 
             else:
-                await interaction.followup.send("🚨 HỆ THỐNG NẠP CARD ĐANG GẶP SỰ CỐ")
+                await interaction.followup.send("🚨 Lỗi hệ thống")
 
         except Exception as e:
 
             print("API ERROR:", e)
 
-            await interaction.followup.send(
-                "🚨 HỆ THỐNG NẠP CARD ĐANG GẶP SỰ CỐ"
-            )
+            await interaction.followup.send("🚨 Lỗi hệ thống")
 
 
-# ================= RUN API =================
-
-from fastapi import FastAPI, Request
-import threading
-import uvicorn
-
-app = FastAPI()
-
-@app.api_route("/callback", methods=["GET", "POST"])
-async def callback(request: Request):
-
-    try:
-        if request.method == "POST":
-            data = await request.json()
-        else:
-            data = dict(request.query_params)
-    except:
-        data = dict(request.query_params)
-
-    request_id = data.get("request_id")
-    status = str(data.get("status", "0"))
-    amount = data.get("amount", "0")
-
-    if request_id in orders:
-
-        order = orders[request_id]
-
-        channel = bot.get_channel(order["channel"])
-
-        # FIX crash khi channel không tồn tại
-        if not channel:
-            return {"ok": True}
-
-        if status == "1":
-
-            embed = discord.Embed(
-                title="🎉 THANH TOÁN THÀNH CÔNG",
-                description=f"""
-📦 **Tên hàng:** {order['product']}
-
-💰 **Số tiền:** {amount}
-
-🧾 **Mã đơn:** {request_id}
-
-🔗 **Link tải:** {order['link']}
-
-❤️ Cảm ơn vì đã tin tưởng sử dụng dịch vụ!
-""",
-                color=0x2ecc71
-            )
-
-            await channel.send(embed=embed)
-
-        elif status == "2":
-            await channel.send("⚠️ **Sai mệnh giá thẻ!**")
-
-        elif status == "3":
-            await channel.send("❌ **Thẻ đã qua sử dụng hoặc không hợp lệ!**")
-
-        elif status == "99":
-            await channel.send("⏳ **Thẻ đang chờ duyệt...**")
-
-    return {"ok": True}
-
-
-# ================= RUN BOT =================
+# ================= RUN BOT + API =================
 
 def start_bot():
     bot.run(TOKEN)
 
-# FIX Railway crash
 threading.Thread(target=start_bot, daemon=True).start()
-
-
-# ================= START SERVER =================
 
 port = int(os.getenv("PORT", 8000))
 uvicorn.run(app, host="0.0.0.0", port=port)
