@@ -91,6 +91,7 @@ async def callback(request: Request):
     request_id = data.get("request_id")
     status = str(data.get("status", "0"))
     amount = data.get("amount", "0")
+    real_value = data.get("value", "0")  # mệnh giá thật
 
     if request_id in orders:
 
@@ -101,7 +102,10 @@ async def callback(request: Request):
         if not channel:
             return {"ok": True}
 
-        if status == "1":
+        order_amount = str(order["amount"])
+
+        # ===== ĐÚNG MỆNH GIÁ =====
+        if status == "1" and real_value == order_amount:
 
             embed = discord.Embed(
                 title="🎉 THANH TOÁN THÀNH CÔNG",
@@ -121,6 +125,16 @@ async def callback(request: Request):
 
             await channel.send(embed=embed)
 
+        # ===== SAI MỆNH GIÁ =====
+        elif status == "1" and real_value != order_amount:
+
+            await channel.send(
+                f"⚠️ Thẻ đúng nhưng **sai mệnh giá**.\n"
+                f"📥 Thẻ: {real_value}\n"
+                f"🛒 Đơn yêu cầu: {order_amount}\n"
+                f"❌ Không hoàn tiền."
+            )
+
         elif status == "2":
             await channel.send("⚠️ Sai mệnh giá thẻ")
 
@@ -128,7 +142,7 @@ async def callback(request: Request):
             await channel.send("❌ Thẻ đã qua sử dụng hoặc không hợp lệ")
 
         elif status == "99":
-            await channel.send("⏳ Thẻ đang chờ duyệt")
+            await channel.send("⏳ Thẻ đang được xử lý...")
 
     return {"ok": True}
 
@@ -343,7 +357,7 @@ class CardModal(discord.ui.Modal, title="💳 Nhập thông tin thẻ"):
         user_cooldown[user_id] = now
 
         await interaction.response.send_message(
-            "⏳ Đang kiểm tra thẻ...",
+            "⏳ Đang gửi thẻ...",
             ephemeral=True
         )
 
@@ -360,7 +374,9 @@ class CardModal(discord.ui.Modal, title="💳 Nhập thông tin thẻ"):
             status = str(result.get("status", "0"))
 
             if status == "99":
-                await interaction.followup.send("⏳ Thẻ đang chờ duyệt")
+                await interaction.followup.send(
+                    "✅ Hệ thống đã nhận thẻ\n⏳ Đang xử lý, vui lòng chờ kết quả..."
+                )
 
             elif status == "1":
                 await interaction.followup.send("🎉 Thẻ hợp lệ, chờ callback")
@@ -378,7 +394,7 @@ class CardModal(discord.ui.Modal, title="💳 Nhập thông tin thẻ"):
                     )
                 else:
                     await interaction.followup.send(
-                        f"❌ Thẻ sai hoặc bạn đã nhập thông tin không chính xác | Nhập sai quá 3 lần sẽ bị cấm sử dụng 5 phút! (Số lần thử [{fails}/{MAX_FAIL}])"
+                        f"❌ Thẻ sai ({fails}/{MAX_FAIL})"
                     )
 
             else:
@@ -400,5 +416,3 @@ threading.Thread(target=start_bot, daemon=True).start()
 
 port = int(os.getenv("PORT", 8000))
 uvicorn.run(app, host="0.0.0.0", port=port)
-
-
