@@ -295,7 +295,7 @@ class AmountSelect(discord.ui.Select):
             discord.SelectOption(label="500.000", value="500000")
         ]
 
-        super().__init__(placeholder="💰 Chọn mệnh giá", options=options)
+        super().__init__(placeholder="💰 Chọn mệnh giá[Lưu ý:Chọn mệnh giá đúng với số tiền của đơn hàng.Nếu nhập sai sẽ không hoàn lại tiền!", options=options)
 
         self.telco = telco
         self.order_id = order_id
@@ -367,3 +367,4 @@ def run_api():
 threading.Thread(target=run_api).start()
 
 bot.run(TOKEN)
+
