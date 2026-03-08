@@ -10,6 +10,7 @@ import uvicorn
 import threading
 import os
 import json
+import time
 
 TOKEN = os.getenv("TOKEN")
 
@@ -21,6 +22,15 @@ CATEGORY_NAME = "orders-card"
 LOG_CHANNEL_ID = 1479880771274674259
 
 orders = {}
+
+# ===== ANTI SPAM =====
+user_cooldown = {}
+user_fail_count = {}
+user_block_until = {}
+
+COOLDOWN_TIME = 15
+MAX_FAIL = 3
+BLOCK_TIME = 300
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
@@ -279,6 +289,8 @@ class TelcoSelect(discord.ui.Select):
             discord.SelectOption(label="Viettel", value="VIETTEL"),
             discord.SelectOption(label="Vinaphone", value="VINAPHONE"),
             discord.SelectOption(label="Mobifone", value="MOBIFONE"),
+            discord.SelectOption(label="Vcoin", value="VCOIN"),
+            discord.SelectOption(label="Scoin", value="SCOIN"),
             discord.SelectOption(label="Zing", value="ZING")
         ]
 
@@ -309,6 +321,27 @@ class CardModal(discord.ui.Modal, title="💳 Nhập thông tin thẻ"):
 
     async def on_submit(self, interaction: discord.Interaction):
 
+        user_id = interaction.user.id
+        now = time.time()
+
+        if user_id in user_block_until and now < user_block_until[user_id]:
+            remain = int(user_block_until[user_id] - now)
+            await interaction.response.send_message(
+                f"🚫 Bạn đã nhập sai quá nhiều. Thử lại sau {remain}s",
+                ephemeral=True
+            )
+            return
+
+        if user_id in user_cooldown and now - user_cooldown[user_id] < COOLDOWN_TIME:
+            wait = int(COOLDOWN_TIME - (now - user_cooldown[user_id]))
+            await interaction.response.send_message(
+                f"⏳ Vui lòng chờ {wait}s trước khi gửi thẻ tiếp",
+                ephemeral=True
+            )
+            return
+
+        user_cooldown[user_id] = now
+
         await interaction.response.send_message(
             "⏳ Đang kiểm tra thẻ...",
             ephemeral=True
@@ -331,12 +364,22 @@ class CardModal(discord.ui.Modal, title="💳 Nhập thông tin thẻ"):
 
             elif status == "1":
                 await interaction.followup.send("🎉 Thẻ hợp lệ, chờ callback")
+                user_fail_count[user_id] = 0
 
-            elif status == "2":
-                await interaction.followup.send("⚠️ Sai mệnh giá thẻ")
+            elif status in ["2", "3"]:
 
-            elif status == "3":
-                await interaction.followup.send("❌ Thẻ không hợp lệ")
+                fails = user_fail_count.get(user_id, 0) + 1
+                user_fail_count[user_id] = fails
+
+                if fails >= MAX_FAIL:
+                    user_block_until[user_id] = now + BLOCK_TIME
+                    await interaction.followup.send(
+                        "🚫 Bạn đã nhập sai quá nhiều. Bị khóa nạp 5 phút"
+                    )
+                else:
+                    await interaction.followup.send(
+                        f"❌ Thẻ sai ({fails}/{MAX_FAIL})"
+                    )
 
             else:
                 await interaction.followup.send("🚨 Lỗi hệ thống")
@@ -357,4 +400,3 @@ threading.Thread(target=start_bot, daemon=True).start()
 
 port = int(os.getenv("PORT", 8000))
 uvicorn.run(app, host="0.0.0.0", port=port)
-
