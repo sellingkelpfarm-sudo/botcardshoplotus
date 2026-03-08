@@ -378,7 +378,7 @@ class CardModal(discord.ui.Modal, title="💳 Nhập thông tin thẻ"):
                     )
                 else:
                     await interaction.followup.send(
-                        f"❌ Thẻ sai ({fails}/{MAX_FAIL})"
+                        f"❌ Thẻ sai hoặc bạn đã nhập thông tin không chính xác | Nhập sai quá 3 lần sẽ bị cấm sử dụng 5 phút! (Số lần thử [{fails}/{MAX_FAIL}])"
                     )
 
             else:
@@ -400,4 +400,5 @@ threading.Thread(target=start_bot, daemon=True).start()
 
 port = int(os.getenv("PORT", 8000))
 uvicorn.run(app, host="0.0.0.0", port=port)
+
 
