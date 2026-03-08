@@ -203,6 +203,8 @@ async def daxong(ctx, order_id: str):
         description=f"""
 📦 **Tên hàng:** {order['product']}
 
+💰 **Số tiền:** {int(amount):,} VND
+
 🧾 **Mã đơn:** {order_id}
 
 🔗 **Link tải:** {order['link']}
@@ -480,5 +482,6 @@ threading.Thread(target=start_bot, daemon=True).start()
 
 port = int(os.getenv("PORT", 8000))
 uvicorn.run(app, host="0.0.0.0", port=port)
+
 
 
