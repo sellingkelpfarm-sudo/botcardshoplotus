@@ -9,6 +9,7 @@ from fastapi import FastAPI, Request
 import uvicorn
 import threading
 import os
+import json
 
 TOKEN = os.getenv("TOKEN")
 
@@ -50,7 +51,10 @@ async def send_card(telco, amount, serial, code, request_id):
 
     async with aiohttp.ClientSession() as session:
         async with session.get(API_URL, params=params) as resp:
-            data = await resp.json(content_type=None)
+
+            text = await resp.text()
+            data = json.loads(text)
+
             return data
 
 
@@ -65,7 +69,7 @@ async def callback(request: Request):
         data = dict(request.query_params)
 
     request_id = data.get("request_id")
-    status = int(data.get("status", 0))
+    status = str(data.get("status", "0"))
     amount = data.get("amount", "0")
 
     if request_id in orders:
@@ -73,7 +77,7 @@ async def callback(request: Request):
         order = orders[request_id]
         channel = bot.get_channel(order["channel"])
 
-        if status == 1:
+        if status == "1":
 
             embed = discord.Embed(
                 title="🎉 THANH TOÁN THÀNH CÔNG",
@@ -93,13 +97,13 @@ async def callback(request: Request):
 
             await channel.send(embed=embed)
 
-        elif status == 2:
+        elif status == "2":
             await channel.send("⚠️ **Sai mệnh giá thẻ!**")
 
-        elif status == 3:
+        elif status == "3":
             await channel.send("❌ **Thẻ đã qua sử dụng hoặc không hợp lệ!**")
 
-        elif status == 99:
+        elif status == "99":
             await channel.send("⏳ **Thẻ đang chờ duyệt...**")
 
     return {"ok": True}
@@ -176,7 +180,8 @@ class BuyView(discord.ui.View):
             "channel": channel.id,
             "product": self.product,
             "link": self.link,
-            "user": user.name
+            "user": user.name,
+            "amount": self.amount
         }
 
         embed = discord.Embed(
@@ -184,11 +189,11 @@ class BuyView(discord.ui.View):
             description=f"""
 📦 **Tên hàng:** {self.product}
 
-💳 **Số tiền:** {self.amount} VND
+💳 **Số tiền cần nạp:** {self.amount} VND
 
 🧾 **Mã đơn:** {code}
 
-⚠️ Nhấn **NẠP CARD** để thanh toán
+⚠️ Thẻ cào phải đúng mệnh giá **{self.amount} VND**
 """,
             color=0x3498db
         )
@@ -219,7 +224,7 @@ class OrderView(discord.ui.View):
         view.add_item(TelcoSelect(self.order_id, self.amount))
 
         await interaction.response.send_message(
-            "📡 **Vui lòng chọn nhà mạng**",
+            f"📡 **Chọn nhà mạng (Thẻ phải mệnh giá {self.amount} VND)**",
             view=view
         )
 
@@ -272,39 +277,8 @@ class TelcoSelect(discord.ui.Select):
 
     async def callback(self, interaction: discord.Interaction):
 
-        view = discord.ui.View()
-        view.add_item(AmountSelect(self.values[0], self.order_id))
-
-        await interaction.response.send_message(
-            "💰 **Chọn mệnh giá thẻ [Lưu ý: chọn đúng mệnh giá]**",
-            view=view
-        )
-
-
-# ================= AMOUNT =================
-
-class AmountSelect(discord.ui.Select):
-
-    def __init__(self, telco, order_id):
-
-        options = [
-            discord.SelectOption(label="10.000", value="10000"),
-            discord.SelectOption(label="20.000", value="20000"),
-            discord.SelectOption(label="50.000", value="50000"),
-            discord.SelectOption(label="100.000", value="100000"),
-            discord.SelectOption(label="200.000", value="200000"),
-            discord.SelectOption(label="500.000", value="500000")
-        ]
-
-        super().__init__(placeholder="💰 Chọn mệnh giá", options=options)
-
-        self.telco = telco
-        self.order_id = order_id
-
-    async def callback(self, interaction: discord.Interaction):
-
         await interaction.response.send_modal(
-            CardModal(self.telco, self.values[0], self.order_id)
+            CardModal(self.values[0], self.amount, self.order_id)
         )
 
 
@@ -338,29 +312,29 @@ class CardModal(discord.ui.Modal, title="💳 Nhập thông tin thẻ"):
                 self.order_id
             )
 
-            status = int(result.get("status", 0))
+            status = str(result.get("status", "0"))
 
-            if status == 99:
+            if status == "99":
                 await interaction.followup.send("⏳ Thẻ đang chờ duyệt")
 
-            elif status == 1:
+            elif status == "1":
                 await interaction.followup.send("🎉 Thẻ hợp lệ, đang chờ callback")
 
-            elif status == 2:
+            elif status == "2":
                 await interaction.followup.send("⚠️ Sai mệnh giá thẻ")
 
-            elif status == 3:
+            elif status == "3":
                 await interaction.followup.send("❌ Thẻ đã qua sử dụng hoặc không hợp lệ")
 
             else:
-                await interaction.followup.send("🚨 HỆ THỐNG NẠP CARD ĐANG GẶP SỰ CỐ. VUI LÒNG BÁO ADMIN ĐỂ ĐƯỢC HỖ TRỢ!!")
+                await interaction.followup.send("🚨 HỆ THỐNG NẠP CARD ĐANG GẶP SỰ CỐ")
 
         except Exception as e:
 
             print("API ERROR:", e)
 
             await interaction.followup.send(
-                "🚨 HỆ THỐNG NẠP CARD ĐANG GẶP SỰ CỐ. VUI LÒNG BÁO ADMIN ĐỂ ĐƯỢC HỖ TRỢ!!"
+                "🚨 HỆ THỐNG NẠP CARD ĐANG GẶP SỰ CỐ"
             )
 
 
@@ -374,4 +348,3 @@ def run_api():
 threading.Thread(target=run_api).start()
 
 bot.run(TOKEN)
-
