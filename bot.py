@@ -305,7 +305,7 @@ class BuyView(discord.ui.View):
         user_ticket_count[user_id] = user_ticket_count.get(user_id, 0) + 1
 
         embed = discord.Embed(
-            title="💳 XÁC NHẬN THANH TOÁN BẰNG CARD",
+            title="# 💳 XÁC NHẬN THANH TOÁN BẰNG CARD",
             description=f"""
 📦 **Tên hàng:** {self.product}
 💳 **Số tiền:** {self.amount:,} VND
@@ -496,3 +496,4 @@ threading.Thread(target=start_bot, daemon=True).start()
 
 port = int(os.getenv("PORT", 8000))
 uvicorn.run(app, host="0.0.0.0", port=port)
+
