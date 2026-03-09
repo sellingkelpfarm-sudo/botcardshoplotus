@@ -142,6 +142,11 @@ async def callback(request: Request):
 
         if status == "1" and real_value == order_amount:
 
+            # ===== FIX GIẢM SỐ TICKET =====
+            user_id = order.get("user_id")
+            if user_id and user_ticket_count.get(user_id, 0) > 0:
+                user_ticket_count[user_id] -= 1
+
             embed = discord.Embed(
                 title="🎉 THANH TOÁN THÀNH CÔNG",
                 description=f"""
@@ -264,7 +269,6 @@ class BuyView(discord.ui.View):
             )
             return
 
-        # ===== LIMIT TICKET PER USER =====
         if user_ticket_count.get(user_id, 0) >= MAX_TICKETS_PER_USER:
             await interaction.response.send_message(
                 "🚫 Bạn đã đạt giới hạn 3 đơn hàng đang mở. Hãy hoàn thành hoặc hủy đơn trước.",
@@ -298,10 +302,10 @@ class BuyView(discord.ui.View):
             "product": self.product,
             "link": self.link,
             "user": user.name,
+            "user_id": user.id,
             "amount": self.amount
         }
 
-        # ===== LIMIT TICKET PER USER =====
         user_ticket_count[user_id] = user_ticket_count.get(user_id, 0) + 1
 
         embed = discord.Embed(
@@ -496,4 +500,3 @@ threading.Thread(target=start_bot, daemon=True).start()
 
 port = int(os.getenv("PORT", 8000))
 uvicorn.run(app, host="0.0.0.0", port=port)
-
