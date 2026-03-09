@@ -224,10 +224,6 @@ async def daxong(ctx, order_id: str):
 @bot.command()
 async def sellcard(ctx, amount: int, link: str):
 
-    if not isinstance(ctx.channel, discord.Thread):
-        await ctx.send("❌ Lệnh phải dùng trong forum")
-        return
-
     product = ctx.channel.name
 
     embed = discord.Embed(
@@ -500,3 +496,4 @@ threading.Thread(target=start_bot, daemon=True).start()
 
 port = int(os.getenv("PORT", 8000))
 uvicorn.run(app, host="0.0.0.0", port=port)
+
