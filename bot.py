@@ -24,15 +24,12 @@ LOG_CHANNEL_ID = 1479880771274674259
 
 orders = {}
 
-# ===== ANTI SPAM =====
 user_cooldown = {}
 user_fail_count = {}
 user_block_until = {}
 
-# ===== ANTI SPAM BUY BUTTON =====
 buy_cooldown = {}
 
-# ===== LIMIT TICKET PER USER =====
 user_ticket_count = {}
 MAX_TICKETS_PER_USER = 3
 
@@ -50,8 +47,6 @@ app = FastAPI()
 def random_code():
     return ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
 
-
-# ================= API SEND CARD =================
 
 async def send_card(telco, amount, serial, code, request_id):
 
@@ -82,8 +77,6 @@ async def send_card(telco, amount, serial, code, request_id):
             return data
 
 
-# ================= CALLBACK =================
-
 @app.api_route("/callback", methods=["GET", "POST"])
 async def callback(request: Request):
 
@@ -97,7 +90,8 @@ async def callback(request: Request):
 
     print("CALLBACK:", data)
 
-    request_id = data.get("request_id")
+    request_id = str(data.get("request_id", "")).upper()
+
     status = str(data.get("status", "0"))
     amount = int(data.get("amount", 0))
 
@@ -110,7 +104,7 @@ async def callback(request: Request):
         order = orders[request_id]
 
         channel = bot.get_channel(order["channel"])
-        log_channel = bot.get_channel(1479880771274674259)
+        log_channel = bot.get_channel(LOG_CHANNEL_ID)
 
         if not channel:
             return {"ok": True}
@@ -142,7 +136,6 @@ async def callback(request: Request):
 
         if status == "1" and real_value == order_amount:
 
-            # ===== FIX GIẢM SỐ TICKET =====
             user_id = order.get("user_id")
             if user_id and user_ticket_count.get(user_id, 0) > 0:
                 user_ticket_count[user_id] -= 1
@@ -152,7 +145,7 @@ async def callback(request: Request):
                 description=f"""
 📦 **Tên hàng:** {order['product']}
 
-💰 **Số tiền:** {int(amount):,} VND
+💰 **Số tiền:** {real_value:,} VND
 
 🧾 **Mã đơn:** {request_id}
 
@@ -293,7 +286,7 @@ class BuyView(discord.ui.View):
             overwrites=overwrites
         )
 
-        orders[code] = {
+        orders[code.upper()] = {
             "channel": channel.id,
             "product": self.product,
             "link": self.link,
@@ -325,174 +318,3 @@ class BuyView(discord.ui.View):
             f"✅ Đơn hàng đã tạo {channel.mention}",
             ephemeral=True
         )
-
-
-class OrderView(discord.ui.View):
-
-    def __init__(self, order_id, amount):
-        super().__init__(timeout=None)
-        self.order_id = order_id
-        self.amount = amount
-
-    @discord.ui.button(label="💳 NẠP CARD", style=discord.ButtonStyle.green)
-    async def nap(self, interaction: discord.Interaction, button):
-
-        view = discord.ui.View()
-        view.add_item(TelcoSelect(self.order_id, self.amount))
-
-        await interaction.response.send_message(
-            f"## 📡Chọn nhà mạng (mệnh giá {self.amount:,} VND)\n\n-# thời gian tự động xác thực mã thẻ sẽ lâu nếu nằm ngoài giờ làm việc[7h30-22h mỗi ngày].",
-            view=view
-        )
-
-    @discord.ui.button(label="❌ HỦY ĐƠN", style=discord.ButtonStyle.red)
-    async def cancel(self, interaction: discord.Interaction, button):
-
-        await interaction.response.send_message(
-            "⚠️ Bạn chắc chắn muốn hủy?",
-            view=CancelView()
-        )
-
-
-class CancelView(discord.ui.View):
-
-    @discord.ui.button(label="CÓ", style=discord.ButtonStyle.red)
-    async def yes(self, interaction: discord.Interaction, button):
-
-        user_id = interaction.user.id
-
-        if user_ticket_count.get(user_id, 0) > 0:
-            user_ticket_count[user_id] -= 1
-
-        await interaction.response.send_message("🗑️ Kênh sẽ bị xóa sau 5 giây")
-
-        await asyncio.sleep(5)
-        await interaction.channel.delete()
-
-    @discord.ui.button(label="KHÔNG", style=discord.ButtonStyle.green)
-    async def no(self, interaction: discord.Interaction, button):
-
-        await interaction.response.send_message("✅ Tiếp tục thanh toán.")
-
-
-class TelcoSelect(discord.ui.Select):
-
-    def __init__(self, order_id, amount):
-
-        options = [
-            discord.SelectOption(label="Viettel", value="VIETTEL"),
-            discord.SelectOption(label="Vinaphone", value="VINAPHONE"),
-            discord.SelectOption(label="Mobifone", value="MOBIFONE"),
-            discord.SelectOption(label="Vcoin", value="VCOIN"),
-            discord.SelectOption(label="Scoin", value="SCOIN"),
-            discord.SelectOption(label="Zing", value="ZING")
-        ]
-
-        super().__init__(placeholder="📡 Chọn nhà mạng", options=options)
-
-        self.order_id = order_id
-        self.amount = amount
-
-    async def callback(self, interaction: discord.Interaction):
-
-        await interaction.response.send_modal(
-            CardModal(self.values[0], self.amount, self.order_id)
-        )
-
-
-class CardModal(discord.ui.Modal, title="💳 Nhập thông tin thẻ"):
-
-    serial = discord.ui.TextInput(label="SERIAL")
-    code = discord.ui.TextInput(label="MÃ THẺ")
-
-    def __init__(self, telco, amount, order_id):
-        super().__init__()
-        self.telco = telco
-        self.amount = amount
-        self.order_id = order_id
-
-    async def on_submit(self, interaction: discord.Interaction):
-
-        user_id = interaction.user.id
-        now = time.time()
-
-        orders[self.order_id]["serial"] = self.serial.value
-        orders[self.order_id]["code"] = self.code.value
-        orders[self.order_id]["telco"] = self.telco
-
-        if user_id in user_block_until and now < user_block_until[user_id]:
-            remain = int(user_block_until[user_id] - now)
-            await interaction.response.send_message(
-                f"🚫 Bạn đã nhập sai quá nhiều. Thử lại sau {remain}s",
-                ephemeral=True
-            )
-            return
-
-        if user_id in user_cooldown and now - user_cooldown[user_id] < COOLDOWN_TIME:
-            wait = int(COOLDOWN_TIME - (now - user_cooldown[user_id]))
-            await interaction.response.send_message(
-                f"⏳ Vui lòng chờ {wait}s trước khi gửi thẻ tiếp",
-                ephemeral=True
-            )
-            return
-
-        user_cooldown[user_id] = now
-
-        await interaction.response.send_message(
-            "⏳ Đang gửi thẻ...",
-            ephemeral=True
-        )
-
-        try:
-
-            result = await send_card(
-                self.telco,
-                self.amount,
-                self.serial.value,
-                self.code.value,
-                self.order_id
-            )
-
-            status = str(result.get("status", "0"))
-
-            if status == "99":
-                await interaction.followup.send(
-                    "✅ Hệ thống đã nhận thẻ\n⏳ Đang xử lý, vui lòng chờ kết quả...\n\n-#thời gian tự động xác thực mã thẻ sẽ lâu nếu nằm ngoài giờ làm việc [7h30-22h mỗi ngày]"
-                )
-
-            elif status == "1":
-                await interaction.followup.send("🎉 Thẻ hợp lệ, chờ callback")
-                user_fail_count[user_id] = 0
-
-            elif status in ["2", "3"]:
-
-                fails = user_fail_count.get(user_id, 0) + 1
-                user_fail_count[user_id] = fails
-
-                if fails >= MAX_FAIL:
-                    user_block_until[user_id] = now + BLOCK_TIME
-                    await interaction.followup.send(
-                        "🚫 Bạn đã nhập sai quá nhiều. Bị khóa nạp 5 phút"
-                    )
-                else:
-                    await interaction.followup.send(
-                        f"❌ Thẻ sai. Quá 3 lần thử sẽ bị cấm nạp thẻ 5 phút [số lần thử: ({fails}/{MAX_FAIL})]"
-                    )
-
-            else:
-                await interaction.followup.send("🚨 Lỗi hệ thống, Vui lòng báo Admin để xử lý!")
-
-        except Exception as e:
-
-            print("API ERROR:", e)
-
-            await interaction.followup.send("🚨 Lỗi hệ thống, Vui lòng báo Admin để xử lý!")
-
-
-def start_bot():
-    bot.run(TOKEN)
-
-threading.Thread(target=start_bot, daemon=True).start()
-
-port = int(os.getenv("PORT", 8000))
-uvicorn.run(app, host="0.0.0.0", port=port)
