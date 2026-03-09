@@ -29,9 +29,17 @@ user_cooldown = {}
 user_fail_count = {}
 user_block_until = {}
 
+# ===== ANTI SPAM BUY BUTTON =====
+buy_cooldown = {}
+
+# ===== LIMIT TICKET PER USER =====
+user_ticket_count = {}
+MAX_TICKETS_PER_USER = 3
+
 COOLDOWN_TIME = 15
 MAX_FAIL = 3
 BLOCK_TIME = 300
+BUY_COOLDOWN = 20
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
@@ -109,7 +117,6 @@ async def callback(request: Request):
 
         order_amount = int(order["amount"])
 
-        # ===== LOG ADMIN =====
         if log_channel:
 
             log_embed = discord.Embed(
@@ -133,7 +140,6 @@ async def callback(request: Request):
 
             await log_channel.send(embed=log_embed)
 
-        # ===== ĐÚNG MỆNH GIÁ =====
         if status == "1" and real_value == order_amount:
 
             embed = discord.Embed(
@@ -175,14 +181,10 @@ async def callback(request: Request):
     return {"ok": True}
 
 
-# ================= BOT READY =================
-
 @bot.event
 async def on_ready():
     print(f"Bot online: {bot.user}")
 
-
-# ================= ADMIN COMMAND =================
 
 @bot.command()
 @commands.has_permissions(administrator=True)
@@ -203,8 +205,6 @@ async def daxong(ctx, order_id: str):
         description=f"""
 📦 **Tên hàng:** {order['product']}
 
-💰 **Số tiền:** {int(amount):,} VND
-
 🧾 **Mã đơn:** {order_id}
 
 🔗 **Link tải:** {order['link']}
@@ -215,8 +215,6 @@ async def daxong(ctx, order_id: str):
     await channel.send(embed=embed)
     await ctx.send("❤️ **Cảm ơn vì đã tin tưởng sử dụng dịch vụ!**")
 
-
-# ================= SELL CARD =================
 
 @bot.command()
 async def sellcard(ctx, amount: int, link: str):
@@ -244,8 +242,6 @@ async def sellcard(ctx, amount: int, link: str):
     await ctx.send(embed=embed, view=view)
 
 
-# ================= BUY BUTTON =================
-
 class BuyView(discord.ui.View):
 
     def __init__(self, product, amount, link):
@@ -256,6 +252,27 @@ class BuyView(discord.ui.View):
 
     @discord.ui.button(label="🛒 MUA NGAY", style=discord.ButtonStyle.green)
     async def buy(self, interaction: discord.Interaction, button):
+
+        user_id = interaction.user.id
+        now = time.time()
+
+        if user_id in buy_cooldown and now - buy_cooldown[user_id] < BUY_COOLDOWN:
+            wait = int(BUY_COOLDOWN - (now - buy_cooldown[user_id]))
+            await interaction.response.send_message(
+                f"⏳ Bạn đang tạo đơn quá nhanh, vui lòng chờ {wait}s.",
+                ephemeral=True
+            )
+            return
+
+        # ===== LIMIT TICKET PER USER =====
+        if user_ticket_count.get(user_id, 0) >= MAX_TICKETS_PER_USER:
+            await interaction.response.send_message(
+                "🚫 Bạn đã đạt giới hạn 3 đơn hàng đang mở. Hãy hoàn thành hoặc hủy đơn trước.",
+                ephemeral=True
+            )
+            return
+
+        buy_cooldown[user_id] = now
 
         guild = interaction.guild
         user = interaction.user
@@ -284,17 +301,19 @@ class BuyView(discord.ui.View):
             "amount": self.amount
         }
 
+        # ===== LIMIT TICKET PER USER =====
+        user_ticket_count[user_id] = user_ticket_count.get(user_id, 0) + 1
+
         embed = discord.Embed(
             title="💳 XÁC NHẬN THANH TOÁN BẰNG CARD",
             description=f"""
 📦 **Tên hàng:** {self.product}
-
 💳 **Số tiền:** {self.amount:,} VND
-
 🧾 **Mã đơn:** {code}
 
 ⚠️ **LƯU Ý: NẠP SAI NỘI DUNG THẺ HOẶC SAI MỆNH GIÁ TIỀN SẼ KHÔNG ĐƯỢC HOÀN TRẢ LẠI!**
-""",
+
+👇 **Chọn phương thức thanh toán**""",
             color=0x3498db
         )
 
@@ -307,8 +326,6 @@ class BuyView(discord.ui.View):
             ephemeral=True
         )
 
-
-# ================= ORDER VIEW =================
 
 class OrderView(discord.ui.View):
 
@@ -337,12 +354,15 @@ class OrderView(discord.ui.View):
         )
 
 
-# ================= CANCEL =================
-
 class CancelView(discord.ui.View):
 
     @discord.ui.button(label="CÓ", style=discord.ButtonStyle.red)
     async def yes(self, interaction: discord.Interaction, button):
+
+        user_id = interaction.user.id
+
+        if user_ticket_count.get(user_id, 0) > 0:
+            user_ticket_count[user_id] -= 1
 
         await interaction.response.send_message("🗑️ Kênh sẽ bị xóa sau 5 giây")
 
@@ -354,8 +374,6 @@ class CancelView(discord.ui.View):
 
         await interaction.response.send_message("✅ Tiếp tục thanh toán.")
 
-
-# ================= TELCO SELECT =================
 
 class TelcoSelect(discord.ui.Select):
 
@@ -381,8 +399,6 @@ class TelcoSelect(discord.ui.Select):
             CardModal(self.values[0], self.amount, self.order_id)
         )
 
-
-# ================= CARD MODAL =================
 
 class CardModal(discord.ui.Modal, title="💳 Nhập thông tin thẻ"):
 
@@ -473,8 +489,6 @@ class CardModal(discord.ui.Modal, title="💳 Nhập thông tin thẻ"):
             await interaction.followup.send("🚨 Lỗi hệ thống, Vui lòng báo Admin để xử lý!")
 
 
-# ================= RUN BOT + API =================
-
 def start_bot():
     bot.run(TOKEN)
 
@@ -482,9 +496,3 @@ threading.Thread(target=start_bot, daemon=True).start()
 
 port = int(os.getenv("PORT", 8000))
 uvicorn.run(app, host="0.0.0.0", port=port)
-
-
-
-
-
-
