@@ -82,7 +82,7 @@ app = FastAPI()
 def random_code():
     return ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
 
-# Lệnh duyệt thủ công cho Admin
+# Lệnh duyệt thủ công cho Admin (ĐÃ CẬP NHẬT THEO ẢNH)
 @bot.command(name="daxong")
 @commands.has_permissions(administrator=True)
 async def daxong(ctx, request_id: str):
@@ -99,13 +99,21 @@ async def daxong(ctx, request_id: str):
     channel = bot.get_channel(order["channel"])
     history_channel = bot.get_channel(HISTORY_CHANNEL_ID)
 
-    # 1. Phản hồi tại kênh gõ lệnh
-    await ctx.send(f"✅ Đã duyệt thủ công đơn hàng **{request_id}**!")
-
-    # 2. Gửi link vào Ticket
+    # 1. Tạo Embed giống ảnh mẫu
+    embed = discord.Embed(
+        title="🎉 THANH TOÁN THÀNH CÔNG (ADMIN)",
+        description="Admin đã xác nhận giao dịch!",
+        color=0x2ecc71
+    )
+    embed.add_field(name="📦 Tên hàng", value=f"{product}", inline=False)
+    embed.add_field(name="💰 Số tiền", value=f"{amount:,} VND", inline=True)
+    embed.add_field(name="🆔 Mã đơn", value=f"{request_id}", inline=True)
+    embed.add_field(name="📥 Link tải", value=f"{link}", inline=False)
+    
+    # 2. Gửi vào Ticket
     if channel:
-        embed_tkt = discord.Embed(title="🎉 THANH TOÁN THÀNH CÔNG (MANUAL)", description=f"📦 **Tên hàng:** {product}\n💰 **Tiền:** {amount:,} VND\n🔗 **Link tải:** {link}", color=0x2ecc71)
-        await channel.send(embed=embed_tkt)
+        await channel.send(embed=embed)
+        await channel.send("✅ Đã xác nhận giao dịch thành công.")
 
     # 3. Ghi lịch sử
     if history_channel:
@@ -128,15 +136,16 @@ async def daxong(ctx, request_id: str):
                 conn.close()
 
             dm_text = (f"Chúc mừng bạn đã mua thành công đơn hàng **{product}** với số tiền **{amount:,} VND**. "
-                       f"Bạn có 3 ngày bảo hành từ LoTuss's Schematic Shop, sau 3 ngày bảo hành sẽ hết hạn! "
+                       f"Bạn có **3 ngày bảo hành** từ LoTuss's Schematic Shop, sau **3 ngày bảo hành sẽ hết hạn!** "
                        f"Cảm ơn bạn đã tin tưởng và sử dụng dịch vụ của chúng tôi nhé!")
             try: await member.send(dm_text)
             except: pass
 
     if user_id in user_ticket_count: user_ticket_count[user_id] = max(0, user_ticket_count[user_id]-1)
     delete_order(request_id)
+    await ctx.message.add_reaction("✅")
 
-# --- Các logic cũ giữ nguyên hoàn toàn ---
+# --- Các logic Webhook và Task cũ giữ nguyên ---
 
 async def send_card(telco, amount, serial, code, request_id):
     sign = hashlib.md5((PARTNER_KEY + code + serial).encode()).hexdigest()
