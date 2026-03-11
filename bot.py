@@ -23,8 +23,8 @@ API_URL = "https://gachthe1s.com/chargingws/v2"
 CATEGORY_NAME = "orders-card"
 LOG_CHANNEL_ID = 1479880771274674259
 # ===== CẤU HÌNH ID (BẠN HÃY THAY ID THẬT VÀO ĐÂY) =====
-HISTORY_CHANNEL_ID = 123456789012345678 # ID kênh #lịch-sử-mua-hàng
-WARRANTY_ROLE_ID = 123456789012345678   # ID Role bảo hành
+HISTORY_CHANNEL_ID = 1481239066115571885 # ID kênh #lịch-sử-mua-hàng
+WARRANTY_ROLE_ID = 1479550698982215852   # ID Role bảo hành
 
 # ===== DATABASE SETUP =====
 def init_db():
@@ -291,3 +291,4 @@ class CardModal(discord.ui.Modal, title="💳 Nhập thông tin thẻ"):
 def start_bot(): bot.run(TOKEN)
 threading.Thread(target=start_bot, daemon=True).start()
 if __name__ == "__main__": uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", 8000)))
+
