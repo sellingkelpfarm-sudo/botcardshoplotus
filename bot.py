@@ -21,8 +21,8 @@ API_URL = "https://gachthe1s.com/chargingws/v2"
 
 CATEGORY_NAME = "orders-card"
 LOG_CHANNEL_ID = 1479880771274674259
-HISTORY_CHANNEL_ID = 1481239066115571885 # Kênh lịch sử nạp
-WARRANTY_ROLE_ID = 1479550698982215852  # Role bảo hành
+HISTORY_CHANNEL_ID = 1481239066115571885 
+WARRANTY_ROLE_ID = 1479550698982215852  
 FEEDBACK_CHANNEL_MENTION = "<#1481245879607492769>"
 
 # ===== DATABASE SETUP =====
@@ -56,13 +56,6 @@ def get_order(request_id):
                 "user_id": row[4], "amount": row[5], "user_name": row[6]}
     return None
 
-def update_card_info(request_id, serial, code, telco):
-    conn = sqlite3.connect('orders.db')
-    c = conn.cursor()
-    c.execute("UPDATE orders SET serial = ?, code = ?, telco = ? WHERE request_id = ?", (serial, code, telco, request_id))
-    conn.commit()
-    conn.close()
-
 def delete_order(request_id):
     conn = sqlite3.connect('orders.db')
     c = conn.cursor()
@@ -70,9 +63,15 @@ def delete_order(request_id):
     conn.commit()
     conn.close()
 
+def update_card_info(request_id, serial, code, telco):
+    conn = sqlite3.connect('orders.db')
+    c = conn.cursor()
+    c.execute("UPDATE orders SET serial = ?, code = ?, telco = ? WHERE request_id = ?", (serial, code, telco, request_id))
+    conn.commit()
+    conn.close()
+
 init_db()
 
-# ===== ANTI SPAM =====
 user_cooldown, user_fail_count, user_block_until, buy_cooldown, user_ticket_count = {}, {}, {}, {}, {}
 MAX_TICKETS_PER_USER, COOLDOWN_TIME, MAX_FAIL, BLOCK_TIME, BUY_COOLDOWN = 3, 15, 3, 300, 20
 
@@ -82,6 +81,62 @@ app = FastAPI()
 
 def random_code():
     return ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+
+# Lệnh duyệt thủ công cho Admin
+@bot.command(name="daxong")
+@commands.has_permissions(administrator=True)
+async def daxong(ctx, request_id: str):
+    request_id = request_id.upper()
+    order = get_order(request_id)
+    
+    if not order:
+        return await ctx.send(f"❌ Không tìm thấy mã đơn: **{request_id}**")
+
+    user_id = order["user_id"]
+    product = order["product"]
+    amount = order["amount"]
+    link = order["link"]
+    channel = bot.get_channel(order["channel"])
+    history_channel = bot.get_channel(HISTORY_CHANNEL_ID)
+
+    # 1. Phản hồi tại kênh gõ lệnh
+    await ctx.send(f"✅ Đã duyệt thủ công đơn hàng **{request_id}**!")
+
+    # 2. Gửi link vào Ticket
+    if channel:
+        embed_tkt = discord.Embed(title="🎉 THANH TOÁN THÀNH CÔNG (MANUAL)", description=f"📦 **Tên hàng:** {product}\n💰 **Tiền:** {amount:,} VND\n🔗 **Link tải:** {link}", color=0x2ecc71)
+        await channel.send(embed=embed_tkt)
+
+    # 3. Ghi lịch sử
+    if history_channel:
+        history_msg = f"<@{user_id}> đã thanh toán đơn hàng **{product}** với số tiền **{amount:,} VND** (Duyệt thủ công), Bạn đánh giá dịch vụ của chúng tớ tại {FEEDBACK_CHANNEL_MENTION} nhé!"
+        await history_channel.send(history_msg)
+
+    # 4. Cấp Role & DM khách
+    guild = ctx.guild
+    if guild:
+        member = guild.get_member(user_id)
+        if member:
+            role = guild.get_role(WARRANTY_ROLE_ID)
+            if role: 
+                try: await member.add_roles(role)
+                except: pass
+                expiry = (datetime.now() + timedelta(days=3)).timestamp()
+                conn = sqlite3.connect('orders.db')
+                conn.execute("INSERT OR REPLACE INTO warranty VALUES (?, ?, ?)", (user_id, guild.id, expiry))
+                conn.commit()
+                conn.close()
+
+            dm_text = (f"Chúc mừng bạn đã mua thành công đơn hàng **{product}** với số tiền **{amount:,} VND**. "
+                       f"Bạn có 3 ngày bảo hành từ LoTuss's Schematic Shop, sau 3 ngày bảo hành sẽ hết hạn! "
+                       f"Cảm ơn bạn đã tin tưởng và sử dụng dịch vụ của chúng tôi nhé!")
+            try: await member.send(dm_text)
+            except: pass
+
+    if user_id in user_ticket_count: user_ticket_count[user_id] = max(0, user_ticket_count[user_id]-1)
+    delete_order(request_id)
+
+# --- Các logic cũ giữ nguyên hoàn toàn ---
 
 async def send_card(telco, amount, serial, code, request_id):
     sign = hashlib.md5((PARTNER_KEY + code + serial).encode()).hexdigest()
@@ -123,16 +178,13 @@ async def callback(request: Request):
         if status == "1" and real_value == int(order["amount"]):
             user_id = order["user_id"]
             if user_id in user_ticket_count: user_ticket_count[user_id] = max(0, user_ticket_count[user_id]-1)
-
             if channel:
                 embed_tkt = discord.Embed(title="🎉 THANH TOÁN THÀNH CÔNG", description=f"📦 **Tên hàng:** {order['product']}\n💰 **Tiền:** {real_value:,} VND\n🔗 **Link tải:** {order['link']}", color=0x2ecc71)
                 bot.loop.create_task(channel.send(embed=embed_tkt))
-
             if history_channel:
                 history_msg = f"<@{user_id}> đã thanh toán đơn hàng **{order['product']}** với số tiền **{real_value:,} VND**, Bạn đánh giá dịch vụ của chúng tớ tại {FEEDBACK_CHANNEL_MENTION} nhé!"
                 bot.loop.create_task(history_channel.send(history_msg))
-
-            guild = bot.get_guild(channel.guild.id) if channel else None
+            guild = channel.guild if channel else None
             if guild:
                 member = guild.get_member(user_id)
                 if member:
@@ -141,10 +193,9 @@ async def callback(request: Request):
                         bot.loop.create_task(member.add_roles(role))
                         expiry = (datetime.now() + timedelta(days=3)).timestamp()
                         conn = sqlite3.connect('orders.db')
-                        conn.execute("INSERT INTO warranty VALUES (?, ?, ?)", (user_id, guild.id, expiry))
+                        conn.execute("INSERT OR REPLACE INTO warranty VALUES (?, ?, ?)", (user_id, guild.id, expiry))
                         conn.commit()
                         conn.close()
-
                     dm_text = (f"Chúc mừng bạn đã mua thành công đơn hàng **{order['product']}** với số tiền **{real_value:,} VND**. "
                                f"Bạn có 3 ngày bảo hành từ LoTuss's Schematic Shop, sau 3 ngày bảo hành sẽ hết hạn! "
                                f"Cảm ơn bạn đã tin tưởng và sử dụng dịch vụ của chúng tôi nhé!")
@@ -154,7 +205,6 @@ async def callback(request: Request):
         elif status == "1" and real_value != int(order["amount"]):
             if channel: bot.loop.create_task(channel.send(f"⚠️ Thẻ đúng nhưng sai mệnh giá. Không hoàn tiền."))
         elif status == "3" and channel: bot.loop.create_task(channel.send("❌ Thẻ đã sử dụng hoặc không hợp lệ."))
-
     return {"status": 1, "message": "success"}
 
 @tasks.loop(hours=1)
@@ -184,14 +234,9 @@ async def on_ready():
 @bot.command()
 async def sellcard(ctx, amount: int, link: str):
     product = ctx.channel.name
-    # SỬA ĐỔI: Giống mẫu !sellbank
     embed = discord.Embed(
         title="🛒 THANH TOÁN BẰNG CÁCH NẠP THẺ CÀO",
-        description=(
-            f"📦 **Tên hàng:** {product}\n\n"
-            f"💳 **Số tiền**: {amount:,} VND\n\n"
-            "👇 **Nhấn nút MUA NGAY bên dưới để bắt đầu thanh toán**"
-        ),
+        description=(f"📦 **Tên hàng:** {product}\n\n💳 **Số tiền**: {amount:,} VND\n\n👇 **Nhấn nút MUA NGAY bên dưới để bắt đầu thanh toán**"),
         color=discord.Color.blue()
     )
     await ctx.send(embed=embed, view=BuyView(product, amount, link))
@@ -216,18 +261,7 @@ class BuyView(discord.ui.View):
         channel = await guild.create_text_channel(name=f"order-{code.lower()}", category=category, overwrites=overwrites)
         save_order(code.upper(), channel.id, self.product, self.link, user_id, self.amount, interaction.user.name)
         user_ticket_count[user_id] = user_ticket_count.get(user_id, 0) + 1
-        
-        # SỬA ĐỔI: Giống mẫu !sellbank (có dấu # ở tiêu đề)
-        embed = discord.Embed(
-            title="# 💳 XÁC NHẬN THANH TOÁN BẰNG THẺ CÀO",
-            description=(
-                f"📦 **Tên hàng:** {self.product}\n"
-                f"💰 **Số tiền:** {self.amount:,} VND\n"
-                f"🆔 **Mã đơn:** {code}\n\n"
-                "👇 Chọn phương thức thanh toán bên dưới"
-            ),
-            color=discord.Color.blue()
-        )
+        embed = discord.Embed(title="# 💳 XÁC NHẬN THANH TOÁN BẰNG THẺ CÀO", description=(f"📦 **Tên hàng:** {self.product}\n💰 **Số tiền:** {self.amount:,} VND\n🆔 **Mã đơn:** {code}\n\n👇 Chọn phương thức thanh toán bên dưới"), color=discord.Color.blue())
         await channel.send(interaction.user.mention, embed=embed, view=OrderView(code, self.amount))
         await interaction.response.send_message(f"✅ Đơn hàng đã tạo: {channel.mention}", ephemeral=True)
 
@@ -240,7 +274,6 @@ class OrderView(discord.ui.View):
         await interaction.response.send_message(f"📡 Chọn nhà mạng (mệnh giá {self.amount:,} VND)", view=discord.ui.View().add_item(TelcoSelect(self.order_id, self.amount)), ephemeral=True)
     @discord.ui.button(label="❌ HỦY ĐƠN", style=discord.ButtonStyle.red)
     async def cancel(self, interaction: discord.Interaction, button):
-        # SỬA ĐỔI: Thêm xác nhận hủy đơn giống bank
         embed = discord.Embed(title="⚠ XÁC NHẬN HỦY ĐƠN", description="BẠN CÓ CHẮC HỦY ĐƠN HÀNG CHỨ?", color=discord.Color.orange())
         await interaction.response.send_message(embed=embed, view=CancelConfirm(self.order_id), ephemeral=True)
 
@@ -248,18 +281,15 @@ class CancelConfirm(discord.ui.View):
     def __init__(self, order_id):
         super().__init__(timeout=None)
         self.order_id = order_id
-
     @discord.ui.button(label="✅ CÓ", style=discord.ButtonStyle.red)
     async def yes(self, interaction: discord.Interaction, button: discord.ui.Button):
         user_id = interaction.user.id
         await interaction.response.send_message("⏳ Kênh sẽ bị xoá sau 5 giây.")
-        if user_id in user_ticket_count and user_ticket_count[user_id] > 0:
-            user_ticket_count[user_id] -= 1
+        if user_id in user_ticket_count and user_ticket_count[user_id] > 0: user_ticket_count[user_id] -= 1
         delete_order(self.order_id)
         await asyncio.sleep(5)
         try: await interaction.channel.delete()
         except: pass
-
     @discord.ui.button(label="❌ KHÔNG", style=discord.ButtonStyle.green)
     async def no(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_message("👍 Đơn hàng vẫn được giữ.", ephemeral=True)
