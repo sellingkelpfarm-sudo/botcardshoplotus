@@ -15,16 +15,15 @@ import sqlite3
 from datetime import datetime, timedelta
 
 TOKEN = os.getenv("TOKEN")
-
 PARTNER_ID = "86935102540"
 PARTNER_KEY = "c63d72291473a68fcbb23261491a103f"
 API_URL = "https://gachthe1s.com/chargingws/v2"
 
 CATEGORY_NAME = "orders-card"
 LOG_CHANNEL_ID = 1479880771274674259
-# ===== CẤU HÌNH ID (BẠN HÃY THAY ID THẬT VÀO ĐÂY) =====
-HISTORY_CHANNEL_ID = 123456789012345678 # ID kênh #lịch-sử-mua-hàng
-WARRANTY_ROLE_ID = 123456789012345678   # ID Role bảo hành
+HISTORY_CHANNEL_ID = 1481239066115571885 # Kênh lịch sử nạp
+WARRANTY_ROLE_ID = 1479550698982215852  # Role bảo hành
+FEEDBACK_CHANNEL_MENTION = "<#1481245879607492769>"
 
 # ===== DATABASE SETUP =====
 def init_db():
@@ -54,7 +53,7 @@ def get_order(request_id):
     conn.close()
     if row:
         return {"request_id": row[0], "channel": row[1], "product": row[2], "link": row[3], 
-                "user_id": row[4], "amount": row[5], "user_name": row[6], "serial_card": row[7], "code_card": row[8], "telco_card": row[9]}
+                "user_id": row[4], "amount": row[5], "user_name": row[6]}
     return None
 
 def update_card_info(request_id, serial, code, telco):
@@ -73,17 +72,9 @@ def delete_order(request_id):
 
 init_db()
 
-# ===== ANTI SPAM & LOGIC =====
-user_cooldown = {}
-user_fail_count = {}
-user_block_until = {}
-buy_cooldown = {}
-user_ticket_count = {}
-MAX_TICKETS_PER_USER = 3
-COOLDOWN_TIME = 15
-MAX_FAIL = 3
-BLOCK_TIME = 300
-BUY_COOLDOWN = 20
+# ===== ANTI SPAM =====
+user_cooldown, user_fail_count, user_block_until, buy_cooldown, user_ticket_count = {}, {}, {}, {}, {}
+MAX_TICKETS_PER_USER, COOLDOWN_TIME, MAX_FAIL, BLOCK_TIME, BUY_COOLDOWN = 3, 15, 3, 300, 20
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
@@ -133,25 +124,18 @@ async def callback(request: Request):
             user_id = order["user_id"]
             if user_id in user_ticket_count: user_ticket_count[user_id] = max(0, user_ticket_count[user_id]-1)
 
-            # 1. Gửi tin nhắn thành công tại Ticket
             if channel:
                 embed_tkt = discord.Embed(title="🎉 THANH TOÁN THÀNH CÔNG", description=f"📦 **Tên hàng:** {order['product']}\n💰 **Tiền:** {real_value:,} VND\n🔗 **Link tải:** {order['link']}", color=0x2ecc71)
                 bot.loop.create_task(channel.send(embed=embed_tkt))
 
-            # 2. Thông báo Lịch sử mua hàng
             if history_channel:
-                history_msg = f"<@{user_id}> đã thanh toán đơn hàng **{order['product']}** với số tiền **{real_value:,} VND**, Bạn đánh giá dịch vụ của chúng tớ tại #feed-back nhé!"
+                history_msg = f"<@{user_id}> đã thanh toán đơn hàng **{order['product']}** với số tiền **{real_value:,} VND**, Bạn đánh giá dịch vụ của chúng tớ tại {FEEDBACK_CHANNEL_MENTION} nhé!"
                 bot.loop.create_task(history_channel.send(history_msg))
 
-            # 3. Cấp Role và Gửi DMs (Embed trang trí đẹp)
-            guild = None
-            if channel: guild = channel.guild
-            elif history_channel: guild = history_channel.guild
-
+            guild = bot.get_guild(channel.guild.id) if channel else None
             if guild:
                 member = guild.get_member(user_id)
                 if member:
-                    # Thêm Role bảo hành
                     role = guild.get_role(WARRANTY_ROLE_ID)
                     if role: 
                         bot.loop.create_task(member.add_roles(role))
@@ -161,22 +145,11 @@ async def callback(request: Request):
                         conn.commit()
                         conn.close()
 
-                    # Gửi DMs trang trí đẹp
-                    dm_embed = discord.Embed(
-                        title="🏆 MUA HÀNG THÀNH CÔNG",
-                        description=f"Chào **{member.name}**, cảm ơn bạn đã tin tưởng ủng hộ shop!",
-                        color=0x2ecc71,
-                        timestamp=datetime.now()
-                    )
-                    dm_embed.add_field(name="📦 Sản phẩm", value=f"```fix\n{order['product']}```", inline=False)
-                    dm_embed.add_field(name="💰 Tổng thanh toán", value=f"**{real_value:,} VND**", inline=True)
-                    dm_embed.add_field(name="🛡️ Bảo hành", value="**03 Ngày**", inline=True)
-                    dm_embed.add_field(name="⚠️ Lưu ý", value="Sau 3 ngày, role bảo hành sẽ tự động thu hồi. Mọi vấn đề vui lòng liên hệ Admin sớm nhất!", inline=False)
-                    dm_embed.set_footer(text="LoTuss's Schematic Shop • Dịch vụ uy tín hàng đầu")
-                    dm_embed.set_thumbnail(url=guild.icon.url if guild.icon else None)
-                    
-                    bot.loop.create_task(member.send(embed=dm_embed))
-
+                    dm_text = (f"Chúc mừng bạn đã mua thành công đơn hàng **{order['product']}** với số tiền **{real_value:,} VND**. "
+                               f"Bạn có 3 ngày bảo hành từ LoTuss's Schematic Shop, sau 3 ngày bảo hành sẽ hết hạn! "
+                               f"Cảm ơn bạn đã tin tưởng và sử dụng dịch vụ của chúng tôi nhé!")
+                    try: bot.loop.create_task(member.send(dm_text))
+                    except: pass
             delete_order(request_id)
         elif status == "1" and real_value != int(order["amount"]):
             if channel: bot.loop.create_task(channel.send(f"⚠️ Thẻ đúng nhưng sai mệnh giá. Không hoàn tiền."))
@@ -211,6 +184,7 @@ async def on_ready():
 @bot.command()
 async def sellcard(ctx, amount: int, link: str):
     product = ctx.channel.name
+    # GIỮ NGUYÊN MẪU CŨ CỦA BẠN
     embed = discord.Embed(title="💳 THANH TOÁN BẰNG CARD", description=f"📦 **Sản phẩm:** {product}\n💰 **Giá:** {amount:,} VND\n👇 **Bấm nút MUA NGAY để bắt đầu**", color=0xf1c40f)
     await ctx.send(embed=embed, view=BuyView(product, amount, link))
 
@@ -234,6 +208,7 @@ class BuyView(discord.ui.View):
         channel = await guild.create_text_channel(name=f"order-{code.lower()}", category=category, overwrites=overwrites)
         save_order(code.upper(), channel.id, self.product, self.link, user_id, self.amount, interaction.user.name)
         user_ticket_count[user_id] = user_ticket_count.get(user_id, 0) + 1
+        # GIỮ NGUYÊN MẪU CŨ CỦA BẠN
         embed = discord.Embed(title="💳 XÁC NHẬN ĐƠN HÀNG", description=f"📦 **Hàng:** {self.product}\n💰 **Giá:** {self.amount:,} VND\n🧾 **Mã đơn:** {code}", color=0x3498db)
         await channel.send(interaction.user.mention, embed=embed, view=OrderView(code, self.amount))
         await interaction.response.send_message(f"✅ Đã tạo đơn {channel.mention}", ephemeral=True)
