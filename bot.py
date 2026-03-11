@@ -136,7 +136,7 @@ async def daxong(ctx, request_id: str):
                 conn.close()
 
             dm_text = (f"Chúc mừng bạn đã mua thành công đơn hàng **{product}** với số tiền **{amount:,} VND**. "
-                       f"Bạn có **3 ngày bảo hành** từ LoTuss's Schematic Shop, sau **3 ngày bảo hành sẽ hết hạn!** "
+                       f"Bạn có **3 ngày bảo hành** từ ***LoTuss's Schematic Shop***, sau **3 ngày bảo hành sẽ hết hạn!** "
                        f"Cảm ơn bạn đã tin tưởng và sử dụng dịch vụ của chúng tôi nhé!")
             try: await member.send(dm_text)
             except: pass
@@ -206,7 +206,7 @@ async def callback(request: Request):
                         conn.commit()
                         conn.close()
                     dm_text = (f"Chúc mừng bạn đã mua thành công đơn hàng **{order['product']}** với số tiền **{real_value:,} VND**. "
-                               f"Bạn có 3 ngày bảo hành từ LoTuss's Schematic Shop, sau 3 ngày bảo hành sẽ hết hạn! "
+                               f"Bạn có **3 ngày bảo hành** từ ***LoTuss's Schematic Shop***, sau **3 ngày bảo hành sẽ hết hạn!** "
                                f"Cảm ơn bạn đã tin tưởng và sử dụng dịch vụ của chúng tôi nhé!")
                     try: bot.loop.create_task(member.send(dm_text))
                     except: pass
@@ -274,7 +274,7 @@ class BuyView(discord.ui.View):
         
         save_order(code.upper(), channel.id, self.product, self.link, user_id, self.amount, interaction.user.name)
         user_ticket_count[user_id] = user_ticket_count.get(user_id, 0) + 1
-        embed = discord.Embed(title="# 💳 XÁC NHẬN THANH TOÁN BẰNG THẺ CÀO", description=(f"📦 **Tên hàng:** {self.product}\n💰 **Số tiền:** {self.amount:,} VND\n🆔 **Mã đơn:** {code}\n-# Lưu ý: Nhập sai mệnh giá thẻ thì không hoàn tiền lại nhé.\n\n👇 Chọn phương thức thanh toán bên dưới"), color=discord.Color.blue())
+        embed = discord.Embed(title="# 💳 XÁC NHẬN THANH TOÁN BẰNG THẺ CÀO", description=(f"📦 **Tên hàng:** {self.product}\n💰 **Số tiền:** {self.amount:,} VND\n🆔 **Mã đơn:** {code}\n\n-# Lưu ý: Nhập sai mệnh giá thẻ thì không hoàn tiền lại nhé.\n\n\n👇 Chọn phương thức thanh toán bên dưới"), color=discord.Color.blue())
         await channel.send(interaction.user.mention, embed=embed, view=OrderView(code, self.amount))
         await interaction.response.send_message(f"✅ Đơn hàng đã tạo: {channel.mention}", ephemeral=True)
 
@@ -344,4 +344,5 @@ class CardModal(discord.ui.Modal, title="💳 Nhập thông tin thẻ"):
 def start_bot(): bot.run(TOKEN)
 threading.Thread(target=start_bot, daemon=True).start()
 if __name__ == "__main__": uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", 8000)))
+
 
