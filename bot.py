@@ -184,8 +184,16 @@ async def on_ready():
 @bot.command()
 async def sellcard(ctx, amount: int, link: str):
     product = ctx.channel.name
-    # GIỮ NGUYÊN MẪU CŨ CỦA BẠN
-    embed = discord.Embed(title="💳 THANH TOÁN BẰNG CARD", description=f"📦 **Sản phẩm:** {product}\n💰 **Giá:** {amount:,} VND\n👇 **Bấm nút MUA NGAY để bắt đầu**", color=0xf1c40f)
+    # SỬA ĐỔI: Giống mẫu !sellbank
+    embed = discord.Embed(
+        title="🛒 THANH TOÁN BẰNG CÁCH NẠP THẺ CÀO",
+        description=(
+            f"📦 **Tên hàng:** {product}\n\n"
+            f"💳 **Số tiền**: {amount:,} VND\n\n"
+            "👇 **Nhấn nút MUA NGAY bên dưới để bắt đầu thanh toán**"
+        ),
+        color=discord.Color.blue()
+    )
     await ctx.send(embed=embed, view=BuyView(product, amount, link))
 
 class BuyView(discord.ui.View):
@@ -199,7 +207,7 @@ class BuyView(discord.ui.View):
         if user_id in buy_cooldown and now - buy_cooldown[user_id] < BUY_COOLDOWN:
             return await interaction.response.send_message(f"⏳ Thử lại sau {int(BUY_COOLDOWN-(now-buy_cooldown[user_id]))}s.", ephemeral=True)
         if user_ticket_count.get(user_id, 0) >= MAX_TICKETS_PER_USER:
-            return await interaction.response.send_message("🚫 Giới hạn 3 đơn.", ephemeral=True)
+            return await interaction.response.send_message("🚫 Bạn đã đạt giới hạn 3 đơn hàng đang mở. Hãy hoàn thành hoặc hủy đơn trước.", ephemeral=True)
         buy_cooldown[user_id] = now
         code = random_code()
         guild = interaction.guild
@@ -208,10 +216,20 @@ class BuyView(discord.ui.View):
         channel = await guild.create_text_channel(name=f"order-{code.lower()}", category=category, overwrites=overwrites)
         save_order(code.upper(), channel.id, self.product, self.link, user_id, self.amount, interaction.user.name)
         user_ticket_count[user_id] = user_ticket_count.get(user_id, 0) + 1
-        # GIỮ NGUYÊN MẪU CŨ CỦA BẠN
-        embed = discord.Embed(title="💳 XÁC NHẬN ĐƠN HÀNG", description=f"📦 **Hàng:** {self.product}\n💰 **Giá:** {self.amount:,} VND\n🧾 **Mã đơn:** {code}", color=0x3498db)
+        
+        # SỬA ĐỔI: Giống mẫu !sellbank (có dấu # ở tiêu đề)
+        embed = discord.Embed(
+            title="# 💳 XÁC NHẬN THANH TOÁN BẰNG THẺ CÀO",
+            description=(
+                f"📦 **Tên hàng:** {self.product}\n"
+                f"💰 **Số tiền:** {self.amount:,} VND\n"
+                f"🆔 **Mã đơn:** {code}\n\n"
+                "👇 Chọn phương thức thanh toán bên dưới"
+            ),
+            color=discord.Color.blue()
+        )
         await channel.send(interaction.user.mention, embed=embed, view=OrderView(code, self.amount))
-        await interaction.response.send_message(f"✅ Đã tạo đơn {channel.mention}", ephemeral=True)
+        await interaction.response.send_message(f"✅ Đơn hàng đã tạo: {channel.mention}", ephemeral=True)
 
 class OrderView(discord.ui.View):
     def __init__(self, order_id, amount):
@@ -222,12 +240,29 @@ class OrderView(discord.ui.View):
         await interaction.response.send_message(f"📡 Chọn nhà mạng (mệnh giá {self.amount:,} VND)", view=discord.ui.View().add_item(TelcoSelect(self.order_id, self.amount)), ephemeral=True)
     @discord.ui.button(label="❌ HỦY ĐƠN", style=discord.ButtonStyle.red)
     async def cancel(self, interaction: discord.Interaction, button):
-        if user_ticket_count.get(interaction.user.id, 0) > 0: user_ticket_count[interaction.user.id] -= 1
+        # SỬA ĐỔI: Thêm xác nhận hủy đơn giống bank
+        embed = discord.Embed(title="⚠ XÁC NHẬN HỦY ĐƠN", description="BẠN CÓ CHẮC HỦY ĐƠN HÀNG CHỨ?", color=discord.Color.orange())
+        await interaction.response.send_message(embed=embed, view=CancelConfirm(self.order_id), ephemeral=True)
+
+class CancelConfirm(discord.ui.View):
+    def __init__(self, order_id):
+        super().__init__(timeout=None)
+        self.order_id = order_id
+
+    @discord.ui.button(label="✅ CÓ", style=discord.ButtonStyle.red)
+    async def yes(self, interaction: discord.Interaction, button: discord.ui.Button):
+        user_id = interaction.user.id
+        await interaction.response.send_message("⏳ Kênh sẽ bị xoá sau 5 giây.")
+        if user_id in user_ticket_count and user_ticket_count[user_id] > 0:
+            user_ticket_count[user_id] -= 1
         delete_order(self.order_id)
-        await interaction.response.send_message("🗑️ Xóa kênh sau 5s...")
         await asyncio.sleep(5)
         try: await interaction.channel.delete()
         except: pass
+
+    @discord.ui.button(label="❌ KHÔNG", style=discord.ButtonStyle.green)
+    async def no(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_message("👍 Đơn hàng vẫn được giữ.", ephemeral=True)
 
 class TelcoSelect(discord.ui.Select):
     def __init__(self, order_id, amount):
