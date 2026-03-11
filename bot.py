@@ -117,7 +117,7 @@ async def daxong(ctx, request_id: str):
 
     # 3. Ghi lịch sử
     if history_channel:
-        history_msg = f"<@{user_id}> đã thanh toán đơn hàng **{product}** với số tiền **{amount:,} VND** (Duyệt thủ công), Bạn đánh giá dịch vụ của chúng tớ tại {FEEDBACK_CHANNEL_MENTION} nhé!"
+        history_msg = f"<@{user_id}> đã thanh toán đơn hàng **{product}** với số tiền **{amount:,} VND**, Bạn đánh giá dịch vụ của chúng tớ tại {FEEDBACK_CHANNEL_MENTION} nhé!"
         await history_channel.send(history_msg)
 
     # 4. Cấp Role & DM khách
@@ -274,7 +274,7 @@ class BuyView(discord.ui.View):
         
         save_order(code.upper(), channel.id, self.product, self.link, user_id, self.amount, interaction.user.name)
         user_ticket_count[user_id] = user_ticket_count.get(user_id, 0) + 1
-        embed = discord.Embed(title="# 💳 XÁC NHẬN THANH TOÁN BẰNG THẺ CÀO", description=(f"📦 **Tên hàng:** {self.product}\n💰 **Số tiền:** {self.amount:,} VND\n🆔 **Mã đơn:** {code}\n\n👇 Chọn phương thức thanh toán bên dưới"), color=discord.Color.blue())
+        embed = discord.Embed(title="# 💳 XÁC NHẬN THANH TOÁN BẰNG THẺ CÀO", description=(f"📦 **Tên hàng:** {self.product}\n💰 **Số tiền:** {self.amount:,} VND\n🆔 **Mã đơn:** {code}\n-# Lưu ý: Nhập sai mệnh giá thẻ thì không hoàn tiền lại nhé.\n\n👇 Chọn phương thức thanh toán bên dưới"), color=discord.Color.blue())
         await channel.send(interaction.user.mention, embed=embed, view=OrderView(code, self.amount))
         await interaction.response.send_message(f"✅ Đơn hàng đã tạo: {channel.mention}", ephemeral=True)
 
@@ -339,8 +339,9 @@ class CardModal(discord.ui.Modal, title="💳 Nhập thông tin thẻ"):
             fails = user_fail_count.get(user_id, 0) + 1
             user_fail_count[user_id] = fails
             if fails >= MAX_FAIL: user_block_until[user_id] = now + BLOCK_TIME
-            await interaction.followup.send(f"❌ Thẻ sai ({fails}/{MAX_FAIL}).", ephemeral=True)
+            await interaction.followup.send(f"❌ Thẻ sai. Vui lòng nhập lại!({fails}/{MAX_FAIL}).", ephemeral=True)
 
 def start_bot(): bot.run(TOKEN)
 threading.Thread(target=start_bot, daemon=True).start()
 if __name__ == "__main__": uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", 8000)))
+
