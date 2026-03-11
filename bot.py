@@ -82,7 +82,7 @@ app = FastAPI()
 def random_code():
     return ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
 
-# Lệnh duyệt thủ công cho Admin (ĐÃ CẬP NHẬT THEO ẢNH)
+# Lệnh duyệt thủ công cho Admin
 @bot.command(name="daxong")
 @commands.has_permissions(administrator=True)
 async def daxong(ctx, request_id: str):
@@ -267,7 +267,11 @@ class BuyView(discord.ui.View):
         guild = interaction.guild
         category = discord.utils.get(guild.categories, name=CATEGORY_NAME)
         overwrites = {guild.default_role: discord.PermissionOverwrite(view_channel=False), interaction.user: discord.PermissionOverwrite(view_channel=True, send_messages=True), guild.me: discord.PermissionOverwrite(view_channel=True)}
-        channel = await guild.create_text_channel(name=f"order-{code.lower()}", category=category, overwrites=overwrites)
+        
+        # SỬA TÊN KÊNH Ở ĐÂY
+        channel_name = f"{code.lower()}-{interaction.user.name.lower()}"
+        channel = await guild.create_text_channel(name=channel_name, category=category, overwrites=overwrites)
+        
         save_order(code.upper(), channel.id, self.product, self.link, user_id, self.amount, interaction.user.name)
         user_ticket_count[user_id] = user_ticket_count.get(user_id, 0) + 1
         embed = discord.Embed(title="# 💳 XÁC NHẬN THANH TOÁN BẰNG THẺ CÀO", description=(f"📦 **Tên hàng:** {self.product}\n💰 **Số tiền:** {self.amount:,} VND\n🆔 **Mã đơn:** {code}\n\n👇 Chọn phương thức thanh toán bên dưới"), color=discord.Color.blue())
