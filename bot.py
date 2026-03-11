@@ -25,6 +25,7 @@ LOG_CHANNEL_ID = 1479880771274674259
 # ===== CẤU HÌNH ID (BẠN HÃY THAY ID THẬT VÀO ĐÂY) =====
 HISTORY_CHANNEL_ID = 1481239066115571885 # ID kênh #lịch-sử-mua-hàng
 WARRANTY_ROLE_ID = 1479550698982215852   # ID Role bảo hành
+FEEDBACK_CHANNEL_ID = 1481245879607492769 # ID kênh #feed-back (thay ID thật của bạn vào đây)
 
 # ===== DATABASE SETUP =====
 def init_db():
@@ -138,9 +139,9 @@ async def callback(request: Request):
                 embed_tkt = discord.Embed(title="🎉 THANH TOÁN THÀNH CÔNG", description=f"📦 **Tên hàng:** {order['product']}\n💰 **Tiền:** {real_value:,} VND\n🔗 **Link tải:** {order['link']}", color=0x2ecc71)
                 bot.loop.create_task(channel.send(embed=embed_tkt))
 
-            # 2. Thông báo Lịch sử mua hàng
+            # 2. Thông báo Lịch sử mua hàng (Đã sửa đổi để mention kênh feed-back)
             if history_channel:
-                history_msg = f"<@{user_id}> đã thanh toán đơn hàng **{order['product']}** với số tiền **{real_value:,} VND**, Bạn đánh giá dịch vụ của chúng tớ tại #feed-back nhé!"
+                history_msg = f"<@{user_id}> đã thanh toán đơn hàng **{order['product']}** với số tiền **{real_value:,} VND**, Bạn đánh giá dịch vụ của chúng tớ tại <#{FEEDBACK_CHANNEL_ID}> nhé!"
                 bot.loop.create_task(history_channel.send(history_msg))
 
             # 3. Cấp Role và Gửi DMs (Embed trang trí đẹp)
@@ -164,14 +165,12 @@ async def callback(request: Request):
                     # Gửi DMs trang trí đẹp
                     dm_embed = discord.Embed(
                         title="🏆 MUA HÀNG THÀNH CÔNG",
-                        description=f"Chào **{member.name}**, cảm ơn bạn đã tin tưởng ủng hộ shop!",
+                        description=f"Chúc mừng bạn đã mua thành công đơn hàng **{order['product']}** với số tiền **{real_value:,} VND**.",
                         color=0x2ecc71,
                         timestamp=datetime.now()
                     )
-                    dm_embed.add_field(name="📦 Sản phẩm", value=f"```fix\n{order['product']}```", inline=False)
-                    dm_embed.add_field(name="💰 Tổng thanh toán", value=f"**{real_value:,} VND**", inline=True)
-                    dm_embed.add_field(name="🛡️ Bảo hành", value="**03 Ngày**", inline=True)
-                    dm_embed.add_field(name="⚠️ Lưu ý", value="Sau 3 ngày, role bảo hành sẽ tự động thu hồi. Mọi vấn đề vui lòng liên hệ Admin sớm nhất!", inline=False)
+                    dm_embed.add_field(name="🛡️ Bảo hành", value="Bạn có **03 ngày** bảo hành từ **LoTuss's Schematic Shop**, sau 3 ngày bảo hành sẽ hết hạn!", inline=False)
+                    dm_embed.add_field(name="🙏 Cảm ơn", value="Cảm ơn bạn đã tin tưởng và sử dụng dịch vụ của chúng tôi nhé!", inline=False)
                     dm_embed.set_footer(text="LoTuss's Schematic Shop • Dịch vụ uy tín hàng đầu")
                     dm_embed.set_thumbnail(url=guild.icon.url if guild.icon else None)
                     
@@ -291,4 +290,3 @@ class CardModal(discord.ui.Modal, title="💳 Nhập thông tin thẻ"):
 def start_bot(): bot.run(TOKEN)
 threading.Thread(target=start_bot, daemon=True).start()
 if __name__ == "__main__": uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", 8000)))
-
