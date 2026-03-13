@@ -95,11 +95,14 @@ def random_code():
 @bot.command(name="daxong")
 @commands.has_permissions(administrator=True)
 async def daxong(ctx, request_id: str):
+    try: await ctx.message.delete()
+    except: pass
+    
     request_id = request_id.upper()
     order = get_order(request_id)
     
     if not order:
-        return await ctx.send(f"❌ Không tìm thấy mã đơn: **{request_id}**")
+        return await ctx.send(f"❌ Không tìm thấy mã đơn: **{request_id}**", delete_after=10)
 
     user_id = order["user_id"]
     product = order["product"]
@@ -150,17 +153,19 @@ async def daxong(ctx, request_id: str):
 
     if user_id in user_ticket_count: user_ticket_count[user_id] = max(0, user_ticket_count[user_id]-1)
     delete_order(request_id)
-    await ctx.message.add_reaction("✅")
 
 # Lệnh set kênh TOP cho Admin
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def settopcard(ctx):
+    try: await ctx.message.delete()
+    except: pass
+    
     conn = sqlite3.connect('orders.db')
     conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('top_channel', ?)", (str(ctx.channel.id),))
     conn.commit()
     conn.close()
-    await ctx.send(f"✅ Đã thiết lập kênh {ctx.channel.mention} làm nơi hiển thị bảng TOP CARD.")
+    await ctx.send(f"✅ Đã thiết lập kênh {ctx.channel.mention} làm nơi hiển thị bảng TOP CARD.", delete_after=10)
     await update_top_task()
 
 # --- Logic Bảng Top (Đã chỉnh sửa giống hệt ảnh mẫu) ---
@@ -320,6 +325,9 @@ async def on_ready():
 
 @bot.command()
 async def sellcard(ctx, amount: int, link: str):
+    try: await ctx.message.delete()
+    except: pass
+    
     product = ctx.channel.name
     embed = discord.Embed(
         title="🛒 THANH TOÁN BẰNG CÁCH NẠP THẺ CÀO",
