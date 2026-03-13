@@ -34,6 +34,9 @@ def init_db():
                   user_id INTEGER, amount INTEGER, user_name TEXT, serial TEXT, code TEXT, telco TEXT)''')
     c.execute('''CREATE TABLE IF NOT EXISTS warranty 
                  (user_id INTEGER, guild_id INTEGER, expiry_timestamp REAL)''')
+    # Thêm bảng Leaderboard và Config cho chức năng TOP
+    c.execute('''CREATE TABLE IF NOT EXISTS leaderboard (user_id INTEGER PRIMARY KEY, total_spent INTEGER)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT)''')
     conn.commit()
     conn.close()
 
@@ -42,6 +45,13 @@ def save_order(request_id, channel_id, product, link, user_id, amount, user_name
     c = conn.cursor()
     c.execute("INSERT OR REPLACE INTO orders (request_id, channel_id, product, link, user_id, amount, user_name) VALUES (?, ?, ?, ?, ?, ?, ?)",
               (request_id, channel_id, product, link, user_id, amount, user_name))
+    conn.commit()
+    conn.close()
+
+def update_leaderboard(user_id, amount):
+    conn = sqlite3.connect('orders.db')
+    c = conn.cursor()
+    c.execute("INSERT INTO leaderboard (user_id, total_spent) VALUES (?, ?) ON CONFLICT(user_id) DO UPDATE SET total_spent = total_spent + ?", (user_id, amount, amount))
     conn.commit()
     conn.close()
 
@@ -99,6 +109,9 @@ async def daxong(ctx, request_id: str):
     channel = bot.get_channel(order["channel"])
     history_channel = bot.get_channel(HISTORY_CHANNEL_ID)
 
+    # Cập nhật Leaderboard
+    update_leaderboard(user_id, amount)
+
     # 1. Tạo Embed giống ảnh mẫu
     embed = discord.Embed(
         title="🎉 THANH TOÁN THÀNH CÔNG (ADMIN)",
@@ -145,6 +158,70 @@ async def daxong(ctx, request_id: str):
     delete_order(request_id)
     await ctx.message.add_reaction("✅")
 
+# Lệnh set kênh TOP cho Admin
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def settopcard(ctx):
+    conn = sqlite3.connect('orders.db')
+    conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('top_channel', ?)", (str(ctx.channel.id),))
+    conn.commit()
+    conn.close()
+    await ctx.send(f"✅ Đã thiết lập kênh {ctx.channel.mention} làm nơi hiển thị bảng TOP CARD.")
+
+# --- Logic Bảng Top ---
+@tasks.loop(hours=1)
+async def update_top_task():
+    await bot.wait_until_ready()
+    conn = sqlite3.connect('orders.db')
+    c = conn.cursor()
+    c.execute("SELECT value FROM config WHERE key = 'top_channel'")
+    ch_res = c.fetchone()
+    c.execute("SELECT value FROM config WHERE key = 'top_message'")
+    msg_res = c.fetchone()
+    
+    if not ch_res:
+        conn.close()
+        return
+        
+    channel = bot.get_channel(int(ch_res[0]))
+    if not channel:
+        conn.close()
+        return
+        
+    c.execute("SELECT user_id, total_spent FROM leaderboard ORDER BY total_spent DESC LIMIT 10")
+    rows = c.fetchall()
+    
+    embed = discord.Embed(title="✨ 🏆 BẢNG VÀNG ĐẠI GIA - LOTUSS SHOP 🏆 ✨", description="*Nơi vinh danh những khách hàng thân thiết và chịu chi nhất hệ thống.*\n━━━━━━━━━━━━━━━━━━━━", color=0xf1c40f)
+    medals = ["🥇", "🥈", "🥉", "👤", "👤", "👤", "👤", "👤", "👤", "👤"]
+    top_list = ""
+    
+    if not rows:
+        top_list = "🚀 *Chưa có dữ liệu, hãy trở thành người đầu tiên!*"
+    else:
+        for i, r in enumerate(rows):
+            user_tag = f"<@{r[0]}>"
+            money = f"{r[1]:,}"
+            if i < 3:
+                top_list += f"{medals[i]} **Top {i+1}: {user_tag}**\n┗ 💰 Tổng chi: `{money} VND`\n\n"
+            else:
+                top_list += f"{medals[i]} Top {i+1}: {user_tag} | `{money} VND`\n"
+                
+    embed.add_field(name="💎 DANH SÁCH VINH DANH 💎", value=top_list, inline=False)
+    embed.set_footer(text=f"🕒 Cập nhật tự động lúc: {datetime.now().strftime('%H:%M - %d/%m/%Y')}")
+    
+    message = None
+    if msg_res:
+        try: message = await channel.fetch_message(int(msg_res[0]))
+        except: message = None
+        
+    if message: 
+        await message.edit(embed=embed)
+    else:
+        new_msg = await channel.send(embed=embed)
+        conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('top_message', ?)", (str(new_msg.id),))
+        conn.commit()
+    conn.close()
+
 # --- Các logic Webhook và Task cũ giữ nguyên ---
 
 async def send_card(telco, amount, serial, code, request_id):
@@ -186,6 +263,9 @@ async def callback(request: Request):
 
         if status == "1" and real_value == int(order["amount"]):
             user_id = order["user_id"]
+            # Cập nhật Leaderboard khi nạp thành công tự động
+            update_leaderboard(user_id, real_value)
+            
             if user_id in user_ticket_count: user_ticket_count[user_id] = max(0, user_ticket_count[user_id]-1)
             if channel:
                 embed_tkt = discord.Embed(title="🎉 THANH TOÁN THÀNH CÔNG", description=f"📦 **Tên hàng:** {order['product']}\n💰 **Tiền:** {real_value:,} VND\n🔗 **Link tải:** {order['link']}", color=0x2ecc71)
@@ -239,6 +319,7 @@ async def check_warranty():
 async def on_ready():
     print(f"Bot đang chạy: {bot.user}")
     if not check_warranty.is_running(): check_warranty.start()
+    if not update_top_task.is_running(): update_top_task.start()
 
 @bot.command()
 async def sellcard(ctx, amount: int, link: str):
@@ -268,7 +349,6 @@ class BuyView(discord.ui.View):
         category = discord.utils.get(guild.categories, name=CATEGORY_NAME)
         overwrites = {guild.default_role: discord.PermissionOverwrite(view_channel=False), interaction.user: discord.PermissionOverwrite(view_channel=True, send_messages=True), guild.me: discord.PermissionOverwrite(view_channel=True)}
         
-        # SỬA TÊN KÊNH Ở ĐÂY
         channel_name = f"{code.lower()}-{interaction.user.name.lower()}"
         channel = await guild.create_text_channel(name=channel_name, category=category, overwrites=overwrites)
         
@@ -344,5 +424,3 @@ class CardModal(discord.ui.Modal, title="💳 Nhập thông tin thẻ"):
 def start_bot(): bot.run(TOKEN)
 threading.Thread(target=start_bot, daemon=True).start()
 if __name__ == "__main__": uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", 8000)))
-
-
