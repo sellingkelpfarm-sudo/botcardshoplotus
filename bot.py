@@ -34,7 +34,6 @@ def init_db():
                   user_id INTEGER, amount INTEGER, user_name TEXT, serial TEXT, code TEXT, telco TEXT)''')
     c.execute('''CREATE TABLE IF NOT EXISTS warranty 
                  (user_id INTEGER, guild_id INTEGER, expiry_timestamp REAL)''')
-    # Thêm bảng Leaderboard và Config cho chức năng TOP
     c.execute('''CREATE TABLE IF NOT EXISTS leaderboard (user_id INTEGER PRIMARY KEY, total_spent INTEGER)''')
     c.execute('''CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT)''')
     conn.commit()
@@ -109,10 +108,8 @@ async def daxong(ctx, request_id: str):
     channel = bot.get_channel(order["channel"])
     history_channel = bot.get_channel(HISTORY_CHANNEL_ID)
 
-    # Cập nhật Leaderboard
     update_leaderboard(user_id, amount)
 
-    # 1. Tạo Embed giống ảnh mẫu
     embed = discord.Embed(
         title="🎉 THANH TOÁN THÀNH CÔNG (ADMIN)",
         description="Admin đã xác nhận giao dịch!",
@@ -123,17 +120,14 @@ async def daxong(ctx, request_id: str):
     embed.add_field(name="🆔 Mã đơn", value=f"{request_id}", inline=True)
     embed.add_field(name="📥 Link tải", value=f"{link}", inline=False)
     
-    # 2. Gửi vào Ticket
     if channel:
         await channel.send(embed=embed)
         await channel.send("✅ Đã xác nhận giao dịch thành công.")
 
-    # 3. Ghi lịch sử
     if history_channel:
         history_msg = f"<@{user_id}> đã thanh toán đơn hàng **{product}** với số tiền **{amount:,} VND**, Bạn đánh giá dịch vụ của chúng tớ tại {FEEDBACK_CHANNEL_MENTION} nhé!"
         await history_channel.send(history_msg)
 
-    # 4. Cấp Role & DM khách
     guild = ctx.guild
     if guild:
         member = guild.get_member(user_id)
@@ -167,9 +161,10 @@ async def settopcard(ctx):
     conn.commit()
     conn.close()
     await ctx.send(f"✅ Đã thiết lập kênh {ctx.channel.mention} làm nơi hiển thị bảng TOP CARD.")
+    await update_top_task()
 
-# --- Logic Bảng Top ---
-@tasks.loop(hours=1)
+# --- Logic Bảng Top (Đã chỉnh sửa giống hệt ảnh mẫu) ---
+@tasks.loop(minutes=30)
 async def update_top_task():
     await bot.wait_until_ready()
     conn = sqlite3.connect('orders.db')
@@ -191,7 +186,12 @@ async def update_top_task():
     c.execute("SELECT user_id, total_spent FROM leaderboard ORDER BY total_spent DESC LIMIT 10")
     rows = c.fetchall()
     
-    embed = discord.Embed(title="✨ 🏆 BẢNG VÀNG ĐẠI GIA - LOTUSS SHOP 🏆 ✨", description="*Nơi vinh danh những khách hàng thân thiết và chịu chi nhất hệ thống.*\n━━━━━━━━━━━━━━━━━━━━", color=0xf1c40f)
+    embed = discord.Embed(
+        title="✨ 🏆 BẢNG VÀNG ĐẠI GIA - LOTUSS SHOP 🏆 ✨", 
+        description="*Nơi vinh danh những khách hàng thân thiết và chịu chi nhất hệ thống.*\n▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬", 
+        color=0xf1c40f
+    )
+    
     medals = ["🥇", "🥈", "🥉", "👤", "👤", "👤", "👤", "👤", "👤", "👤"]
     top_list = ""
     
@@ -204,7 +204,7 @@ async def update_top_task():
             if i < 3:
                 top_list += f"{medals[i]} **Top {i+1}: {user_tag}**\n┗ 💰 Tổng chi: `{money} VND`\n\n"
             else:
-                top_list += f"{medals[i]} Top {i+1}: {user_tag} | `{money} VND`\n"
+                top_list += f"👤 Top {i+1}: {user_tag} | `{money} VND`\n"
                 
     embed.add_field(name="💎 DANH SÁCH VINH DANH 💎", value=top_list, inline=False)
     embed.set_footer(text=f"🕒 Cập nhật tự động lúc: {datetime.now().strftime('%H:%M - %d/%m/%Y')}")
@@ -221,8 +221,6 @@ async def update_top_task():
         conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('top_message', ?)", (str(new_msg.id),))
         conn.commit()
     conn.close()
-
-# --- Các logic Webhook và Task cũ giữ nguyên ---
 
 async def send_card(telco, amount, serial, code, request_id):
     sign = hashlib.md5((PARTNER_KEY + code + serial).encode()).hexdigest()
@@ -263,7 +261,6 @@ async def callback(request: Request):
 
         if status == "1" and real_value == int(order["amount"]):
             user_id = order["user_id"]
-            # Cập nhật Leaderboard khi nạp thành công tự động
             update_leaderboard(user_id, real_value)
             
             if user_id in user_ticket_count: user_ticket_count[user_id] = max(0, user_ticket_count[user_id]-1)
