@@ -192,7 +192,7 @@ async def update_top_task():
     rows = c.fetchall()
     
     embed = discord.Embed(
-        title="✨ 🏆 BẢNG VÀNG ĐẠI GIA - LOTUSS SHOP 🏆 ✨", 
+        title="✨ 🏆 BẢNG VÀNG ĐẠI GIA THANH TOÁN BẰNG CARD - LOTUSS'S SHOP 🏆 ✨", 
         description="*Nơi vinh danh những khách hàng thân thiết và chịu chi nhất hệ thống.*\n▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬", 
         color=0xf1c40f
     )
